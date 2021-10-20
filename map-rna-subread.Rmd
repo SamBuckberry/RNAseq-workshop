@@ -1,0 +1,79 @@
+---
+title: "Untitled"
+author: "Sam Buckberry"
+date: "20/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(Rsubread)
+```
+
+Build the index
+```{r}
+buildindex(basename="GRCh38",
+           reference="/home/data/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
+```
+
+
+```{r}
+library(Rsubread)
+library(stringr)
+library(magrittr)
+
+ref <- system.file("extdata","reference.fa",package="Rsubread")
+buildindex(basename="GRCh38",reference="/home/data/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
+
+align_dat <- align(index="/home/data/GRCh38",
+                   readfile1="/home/data/1001-Effector_CD4pos_T-S_R1_001.fastq.gz",
+                   readfile2 = "/home/data/1001-Effector_CD4pos_T-S_R2_001.fastq.gz",
+                   output_file="1001-Effector_CD4pos_T-S.BAM", nthreads = 28)
+```
+
+
+Write a function to align all samples
+```{r}
+# function to align all samples
+
+r1_list <- list.files("/home/data", pattern = "chr22_R1.fastq.gz", full.names = TRUE)
+r2_list <- list.files("/home/data", pattern = "chr22_R2.fastq.gz", full.names = TRUE)
+bam_list <- basename(r1_list) %>% str_replace("_chr22_R1.fastq.gz", ".bam")
+
+fq_df <- data.frame(r1 = r1_list, r2 = r2_list, bam = bam_list)
+
+align_list <- function(x){
+  
+  align(index="/home/data/GRCh38",
+        type = "rna",
+        useAnnotation = TRUE,
+        annot.ext = "/home/data/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
+        isGTF = TRUE,
+        readfile1= fq_df$r1[x],
+        readfile2 = fq_df$r2[x],
+        output_file = fq_df$bam[x],
+        nthreads = 24)
+}
+
+align_dat <- lapply(1:nrow(fq_df), align_list)
+align_dat <- do.call(cbind, align_dat)
+```
+
+Create the table of counts
+```{r}
+
+### Make table of counts
+fcounts <- featureCounts(files = fq_df$bam,
+                         annot.ext = gtf_path,
+                         isGTFAnnotationFile = TRUE,
+                         isPairedEnd = TRUE,
+                         nthreads=1)
+
+head(fcounts$counts)
+```
+
+
+
