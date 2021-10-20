@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Added safety. If any command fails or a pipe breaks, the script will stop running.
-
 # Fastq input
 readR1="$1"
 readR2="$2"
@@ -11,7 +9,7 @@ cores="$3"
 baseName=$(basename "$readR1" .fastq.gz)
 
 # Argument 5: Path to the index folder
-indexPath="/home/buckberrydata_gmail_com/index/grch37_tran"
+indexPath="/home/buckberrydata_gmail_com/working/grch37_tran/genome_tran"
 
 # Trim the reads
 fastp -i "$readR1" -I "$readR2" -o "$baseName"_trimmed_R1.fastq.gz -O "$baseName"_trimmed_R2.fastq.gz
@@ -20,7 +18,7 @@ fastp -i "$readR1" -I "$readR2" -o "$baseName"_trimmed_R1.fastq.gz -O "$baseName
 hisat2 --time --dta \
 --rna-strandness RF \
 --threads "$cores" \
--k 2 \
+-k 1 \
 --no-mixed \
 --met-file "$baseName"_hisat_metrics.txt \
 -x "$indexPath" \
