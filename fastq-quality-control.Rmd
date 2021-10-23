@@ -20,12 +20,12 @@ library(stringr)
 library(magrittr)
 ```
 
-
+### FASTQ quality control and filtering
 ```{r}
-read1 <- "1001-Effector_CD4pos_T-S_sorted_chr22_R1.fastq.gz"
-read2 <- "1001-Effector_CD4pos_T-S_sorted_chr22_R2.fastq.gz"
+read1 <- "1001-Effector_CD4pos_T-S_chr22_R1.fastq.gz"
+read2 <- "1001-Effector_CD4pos_T-S_chr22_R2.fastq.gz"
 
-out_prefix <- str_replace(string = pe_read1,
+out_prefix <- str_replace(string = read1,
                           pattern = "_R1.fastq.gz",
                           replacement = "_filtered")
 
@@ -33,8 +33,46 @@ fastp_json_report <- rfastp(read1 = read1, read2 = read2,
                             outputFastq = out_prefix,
                             adapterTrimming = TRUE,
                             cutLowQualTail = TRUE,
+                            cutLowQualFront = TRUE,
                             thread = 1)
 ```
+
+Function to process all files
+```{r}
+r1_list <- list.files(path = "fastq/", pattern = "chr22_R1.fastq.gz",
+                      full.names = TRUE)
+r2_list <- list.files(path = "fastq/", pattern = "chr22_R2.fastq.gz",
+                      full.names = TRUE)
+
+fq_df <- data.frame(r1 = r1_list, r2 = r2_list,
+                    prefix = str_remove(basename(r1_list),
+                                        pattern = "_chr22_R1.fastq.gz"))
+
+multi_fastp <- function(x){
+    
+    fastp_json_report <- rfastp(read1 = fq_df$r1[x],
+                                read2 = fq_df$r2[x], 
+                            outputFastq = fq_df$prefix[x],
+                            adapterTrimming = TRUE,
+                            cutLowQualTail = TRUE,
+                            cutLowQualFront = TRUE,
+                            thread = 1)
+    return(fastp_json_report)
+}
+
+report_list <- lapply(1:nrow(fq_df), multi_fastp)
+
+```
+
+Plotting in R
+```{r}
+p1 <- curvePlot(json = fastp_json_report)
+
+dfTrim <- trimSummary(fastp_json_report)
+
+````
+
+
 
 
 

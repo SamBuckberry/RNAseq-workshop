@@ -25,22 +25,25 @@ library(Rsubread)
 library(stringr)
 library(magrittr)
 
-ref <- system.file("extdata","reference.fa",package="Rsubread")
-buildindex(basename="GRCh38",reference="/home/data/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
+buildindex(basename="GRCh38",reference="Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
 
-align_dat <- align(index="/home/data/GRCh38",
-                   readfile1="/home/data/1001-Effector_CD4pos_T-S_R1_001.fastq.gz",
-                   readfile2 = "/home/data/1001-Effector_CD4pos_T-S_R2_001.fastq.gz",
-                   output_file="1001-Effector_CD4pos_T-S.BAM", nthreads = 28)
+align_dat <- align(index="GRCh38",
+                   readfile1="1001-Effector_CD4pos_T-S_chr22_filtered_R1.fastq.gz",
+                   readfile2 = "1001-Effector_CD4pos_T-S_chr22_filtered_R2.fastq.gz",
+                   output_file="1001-Effector_CD4pos_T-S.BAM",
+                   nthreads = 2)
 ```
 
 Write a function to align all samples
 ```{r}
 # function to align all samples
 
-r1_list <- list.files("/home/data", pattern = "chr22_R1.fastq.gz", full.names = TRUE)
-r2_list <- list.files("/home/data", pattern = "chr22_R2.fastq.gz", full.names = TRUE)
-bam_list <- basename(r1_list) %>% str_replace("_chr22_R1.fastq.gz", ".bam")
+r1_list <- list.files("/home/data", pattern = "chr22_R1.fastq.gz",
+                      full.names = TRUE)
+r2_list <- list.files("/home/data", pattern = "chr22_R2.fastq.gz",
+                      full.names = TRUE)
+bam_list <- basename(r1_list) %>%
+    str_replace("_chr22_R1.fastq.gz", ".bam")
 
 fq_df <- data.frame(r1 = r1_list, r2 = r2_list, bam = bam_list)
 
