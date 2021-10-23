@@ -5,8 +5,6 @@ date: "23/10/2021"
 output: html_document
 ---
 
-
-
 ```{r}
 if (!requireNamespace("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
@@ -18,10 +16,13 @@ BiocManager::install("Rfastp")
 library(Rfastp)
 library(stringr)
 library(magrittr)
+library(DT)
+library(ggplot2)
+library(cowplot)
 ```
 
 ### FASTQ quality control and filtering
-```{r}
+```{r, cache=TRUE}
 read1 <- "1001-Effector_CD4pos_T-S_chr22_R1.fastq.gz"
 read2 <- "1001-Effector_CD4pos_T-S_chr22_R2.fastq.gz"
 
@@ -37,16 +38,21 @@ fastp_json_report <- rfastp(read1 = read1, read2 = read2,
                             thread = 1)
 ```
 
+
 Function to process all files
-```{r}
-r1_list <- list.files(path = "fastq/", pattern = "chr22_R1.fastq.gz",
+```{r, cache=TRUE}
+r1_list <- list.files(path = "fastq/",
+                      pattern = "chr22_R1.fastq.gz",
                       full.names = TRUE)
-r2_list <- list.files(path = "fastq/", pattern = "chr22_R2.fastq.gz",
+
+r2_list <- list.files(path = "fastq/",
+                      pattern = "chr22_R2.fastq.gz",
                       full.names = TRUE)
 
 fq_df <- data.frame(r1 = r1_list, r2 = r2_list,
-                    prefix = str_remove(basename(r1_list),
-                                        pattern = "_chr22_R1.fastq.gz"))
+                    prefix = str_replace(basename(r1_list),
+                                        pattern = "_chr22_R1.fastq.gz",
+                                        replacement = "_filtered"))
 
 multi_fastp <- function(x){
     
@@ -64,12 +70,33 @@ report_list <- lapply(1:nrow(fq_df), multi_fastp)
 
 ```
 
-Plotting in R
+Generate a table statistics
 ```{r}
-p1 <- curvePlot(json = fastp_json_report)
 
-dfTrim <- trimSummary(fastp_json_report)
+# Short function to extract summary data from fastp
+get_report <- function(x){unlist(report_list[[x]]$summary)}
 
+# Make a table of the report data.
+# Some re-formatting of the numbers is required. 
+report_table <- lapply(1:length(report_list), get_report) %>%
+    do.call(cbind, .) %>% 
+    format(scientific=FALSE,
+           digits = 2,
+           drop0trailing = TRUE)
+
+report_table <- data.frame(report_table)
+colnames(report_table) <- fq_df$prefix
+
+
+datatable(data = report_table)
+
+```
+
+Make some plots of the statistics
+```{r}
+cp_list <- lapply(X = 1:length(report_list),
+                  FUN = function(x){curvePlot(report_list[[x]]) + ggtitle(fq_df$prefix[x])})
+cp_list
 ````
 
 
