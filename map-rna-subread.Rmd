@@ -11,6 +11,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(Rsubread)
+library(DT)
+library(magrittr)
+library(stringr)
 ```
 
 Build the index
@@ -21,10 +24,6 @@ buildindex(basename="GRCh38",
 
 
 ```{r}
-library(Rsubread)
-library(stringr)
-library(magrittr)
-
 buildindex(basename="GRCh38",reference="Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
 
 align_dat <- align(index="GRCh38",
@@ -38,31 +37,37 @@ Write a function to align all samples
 ```{r}
 # function to align all samples
 
-r1_list <- list.files("/home/data", pattern = "chr22_R1.fastq.gz",
+r1_list <- list.files(".", pattern = "filtered_R1.fastq.gz",
                       full.names = TRUE)
-r2_list <- list.files("/home/data", pattern = "chr22_R2.fastq.gz",
+r2_list <- list.files(".", pattern = "filtered_R2.fastq.gz",
                       full.names = TRUE)
 bam_list <- basename(r1_list) %>%
-    str_replace("_chr22_R1.fastq.gz", ".bam")
+    str_replace("_R1.fastq.gz", ".bam")
 
 fq_df <- data.frame(r1 = r1_list, r2 = r2_list, bam = bam_list)
 
 align_list <- function(x){
   
-  align(index="/home/data/GRCh38",
+  align(index="GRCh38",
         type = "rna",
         useAnnotation = TRUE,
-        annot.ext = "/home/data/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
+        annot.ext = "reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
         isGTF = TRUE,
         readfile1= fq_df$r1[x],
         readfile2 = fq_df$r2[x],
         output_file = fq_df$bam[x],
-        nthreads = 24)
+        nthreads = 2)
 }
 
 align_dat <- lapply(1:nrow(fq_df), align_list)
 align_dat <- do.call(cbind, align_dat)
 ```
+
+```{r}
+datatable(align_dat)
+```
+
+
 
 Create the table of counts
 ```{r}
