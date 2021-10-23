@@ -34,7 +34,6 @@ align_dat <- align(index="/home/data/GRCh38",
                    output_file="1001-Effector_CD4pos_T-S.BAM", nthreads = 28)
 ```
 
-
 Write a function to align all samples
 ```{r}
 # function to align all samples
