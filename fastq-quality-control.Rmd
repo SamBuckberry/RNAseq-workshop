@@ -4,31 +4,25 @@ author: "Sam Buckberry"
 date: "23/10/2021"
 output: html_document
 ---
-
+Load R libraries 
 ```{r}
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-
-BiocManager::install("Rfastp")
-```
-
-```{r}
-library(Rfastp)
 library(stringr)
 library(magrittr)
+library(Rfastp)
 library(DT)
 library(ggplot2)
 library(cowplot)
 ```
 
 ### FASTQ quality control and filtering
-```{r, cache=TRUE}
-read1 <- "1001-Effector_CD4pos_T-S_chr22_R1.fastq.gz"
-read2 <- "1001-Effector_CD4pos_T-S_chr22_R2.fastq.gz"
+
+```{r, cache=TRUE, eval=FALSE}
+read1 <- "fastq/1001-Effector_CD4pos_T-S_chr22_R1.fastq.gz"
+read2 <- "fastq/1001-Effector_CD4pos_T-S_chr22_R2.fastq.gz"
 
 out_prefix <- str_replace(string = read1,
                           pattern = "_R1.fastq.gz",
-                          replacement = "_filtered")
+                          replacement = "_filt_fastp")
 
 fastp_json_report <- rfastp(read1 = read1, read2 = read2, 
                             outputFastq = out_prefix,
@@ -38,8 +32,7 @@ fastp_json_report <- rfastp(read1 = read1, read2 = read2,
                             thread = 1)
 ```
 
-
-Function to process all files
+Write a function to process all the samples. 
 ```{r, cache=TRUE}
 r1_list <- list.files(path = "fastq/",
                       pattern = "chr22_R1.fastq.gz",
@@ -52,7 +45,7 @@ r2_list <- list.files(path = "fastq/",
 fq_df <- data.frame(r1 = r1_list, r2 = r2_list,
                     prefix = str_replace(basename(r1_list),
                                         pattern = "_chr22_R1.fastq.gz",
-                                        replacement = "_filtered"))
+                                        replacement = "_filt_fastp"))
 
 multi_fastp <- function(x){
     
@@ -87,9 +80,7 @@ report_table <- lapply(1:length(report_list), get_report) %>%
 report_table <- data.frame(report_table)
 colnames(report_table) <- fq_df$prefix
 
-
 datatable(data = report_table)
-
 ```
 
 Make some plots of the statistics

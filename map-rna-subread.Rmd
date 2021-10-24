@@ -16,36 +16,40 @@ library(magrittr)
 library(stringr)
 ```
 
-Build the index
+Build the Rsubread alignment index
 ```{r}
 buildindex(basename="GRCh38",
            reference="/home/data/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
 ```
 
-
-```{r}
-buildindex(basename="GRCh38",reference="Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
-
+Command to align one sample (no need to run)
+```{r, eval=FALSE}
 align_dat <- align(index="GRCh38",
-                   readfile1="1001-Effector_CD4pos_T-S_chr22_filtered_R1.fastq.gz",
-                   readfile2 = "1001-Effector_CD4pos_T-S_chr22_filtered_R2.fastq.gz",
+                   readfile1 = "1001-Effector_CD4pos_T-S_filt_fastp_R1.fastq.gz",
+                   readfile2 = "1001-Effector_CD4pos_T-S_filt_fastp_R2.fastq.gz",
                    output_file="1001-Effector_CD4pos_T-S.BAM",
-                   nthreads = 2)
+                   nthreads = 1)
 ```
 
-Write a function to align all samples
+Write a function to align all samples. Here the inputs are the `.fastq.gz` files, and the output is a `.bam` file. 
 ```{r}
 # function to align all samples
 
-r1_list <- list.files(".", pattern = "filtered_R1.fastq.gz",
+r1_list <- list.files(".", pattern = "_filt_fastp_R1.fastq.gz",
                       full.names = TRUE)
-r2_list <- list.files(".", pattern = "filtered_R2.fastq.gz",
+
+r2_list <- list.files(".", pattern = "_filt_fastp_R2.fastq.gz",
                       full.names = TRUE)
+
 bam_list <- basename(r1_list) %>%
     str_replace("_R1.fastq.gz", ".bam")
 
 fq_df <- data.frame(r1 = r1_list, r2 = r2_list, bam = bam_list)
 
+# Double check all files exist
+all(file.exists(c(r1_list, r2_list)))
+
+# Function to align reads for each sample
 align_list <- function(x){
   
   align(index="GRCh38",
@@ -59,28 +63,68 @@ align_list <- function(x){
         nthreads = 2)
 }
 
+# Apply function to list of samples
 align_dat <- lapply(1:nrow(fq_df), align_list)
-align_dat <- do.call(cbind, align_dat)
 ```
 
+Convert alignment data into matrix and view as table
 ```{r}
+align_dat <- do.call(cbind, align_dat)
 datatable(align_dat)
 ```
 
-
-
-Create the table of counts
+Create the table of counts for genes
 ```{r}
+# Check BAM files exist
+stopifnot(file.exists(fq_df$bam))
 
-### Make table of counts
-fcounts <- featureCounts(files = fq_df$bam,
+# Specify GTF file used for counts
+gtf_path <- "reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz"
+
+### Calculate gene counts
+gene_counts <- featureCounts(files = fq_df$bam,
+                             reportReadsPath = "",
+                             GTF.attrType = "gene_id",
+                             annot.ext = gtf_path,
+                             isGTFAnnotationFile = TRUE,
+                             isPairedEnd = TRUE,
+                             nthreads=1)
+
+### Calculate transcript counts
+tx_counts <- featureCounts(files = fq_df$bam,
+                         GTF.attrType = "transcript_id",
                          annot.ext = gtf_path,
                          isGTFAnnotationFile = TRUE,
                          isPairedEnd = TRUE,
                          nthreads=1)
-
-head(fcounts$counts)
 ```
 
+Inspect gene count statistics
+```{r}
+datatable(gene_counts$stat)
+```
+
+Inspect transcript count statistics
+```{r}
+datatable(tx_counts$stat)
+```
+
+Save the counts objects to use in downstream analyses.
+```{r}
+saveRDS(object = gene_counts, file = "Effector_CD4pos_gene_counts.Rds")
+saveRDS(object = tx_counts, file = "Effector_CD4pos_transcript_counts.Rds")
+```
+
+```{r}
+system("multiqc --force --module featureCounts .")
+```
+
+
+===
+
+Log session information
+```{r}
+sessionInfo()
+```
 
 
