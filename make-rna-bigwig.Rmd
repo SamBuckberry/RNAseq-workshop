@@ -11,7 +11,8 @@ output: html_document
 library(rtracklayer)
 library(Rsamtools)
 library(stringr)
-library()
+library(magrittr)
+library(edgeR)
 ```
 
 
@@ -38,16 +39,18 @@ lapply(sorted_bams, indexBam)
 
 ```{r}
 
-# Set the BAM pileup parameters
+# Make bigwig file from bam file
 
-make_rna_bigwig <- function(sorted_bam, normalise=TRUE){
+bam_to_bigwig <- function(sorted_bam, CPM_normalise=TRUE){
     
     message(Sys.time())
     message(str_c("Processing ", sorted_bam))
 
     # Check inputs
+    stopifnot(length(sorted_bam) == 1)
+    stopifnot(length(CPM_normalise) == 1)
     stopifnot(file.exists(sorted_bam))
-    stopifnot(is.logical(normalise))
+    stopifnot(is.logical(CPM_normalise))
     
     # Set outfile name
     out_path <- str_replace(string = sorted_bam,
@@ -76,11 +79,11 @@ make_rna_bigwig <- function(sorted_bam, normalise=TRUE){
     seqlengths(gr) <- used_seqlengths
 
     # Normalise the data
-    if (normalise == TRUE){
+    if (CPM_normalise == TRUE){
         message("Normalising data...")
         pileup_dat$cpm <- edgeR::cpm(y = pileup_dat$count) %>% as.numeric()
         gr$score <- as.numeric(pileup_dat$cpm)
-    } else if (normalise == FALSE){
+    } else if (CPM_normalise == FALSE){
         gr$score <- as.numeric(pileup_dat$count)
     }
     
@@ -93,7 +96,6 @@ make_rna_bigwig <- function(sorted_bam, normalise=TRUE){
     message("Done!")
 }
 
-make_rna_bigwig(sorted_bam = sorted_bams[1], normalise = TRUE)
-
+lapply(X = sorted_bams, FUN = bam_to_bigwig)
 ```
 
