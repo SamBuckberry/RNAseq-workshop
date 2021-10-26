@@ -1,0 +1,84 @@
+---
+title: "Untitled"
+author: "Sam Buckberry"
+date: "20/10/2021"
+output: html_document
+---
+
+
+
+```{r}
+library(rtracklayer)
+library(Rsamtools)
+library(stringr)
+library()
+```
+
+
+Sort the bam files
+```{r}
+bams <- list.files(path = ".", pattern = "filt_fastp.bam$",
+                   full.names = TRUE)
+
+bam_prefix <- str_replace_all(string = bams,
+                               pattern = ".bam",
+                               replacement = "_sorted")
+
+lapply(X = 1:length(bams), FUN = function(x){sortBam(bams[x], bam_prefix[x])})
+
+```
+
+Index the bam files
+```{r}
+sorted_bams <- list.files(path = ".", pattern = "_sorted.bam$")
+
+lapply(sorted_bams, indexBam)
+```
+
+
+```{r}
+
+# Set the BAM pileup parameters
+param <- Rsamtools::PileupParam(distinguish_strands=FALSE,
+                     max_depth=10000,
+                     min_base_quality=0)
+
+# Get the lengths of the chromosome/contigs
+seqlengths <- SeqinfoForUCSCGenome(genome = "hg38")
+getChromInfoFromEnsembl(species = "human", release = )
+
+make_rna_bigwig <- function(sorted_bam, normalise=TRUE){
+    
+    stopifnot(file.exists(sorted_bam))
+    
+    pileup_dat <- Rsamtools::pileup(file = sorted_bam,
+                          pileupParam = param)
+    
+    pileup_dat$cpm <- edgeR::cpm(y = pileup_dat$count) %>% as.numeric()
+    
+    gr <- GRanges(seqnames = pileup_dat$seqnames,
+                  ranges = IRanges(start = pileup_dat$pos, end = pileup_dat$pos))
+    
+    all_seqlengths <- seqlengths(x = BSgenome.Hsapiens.UCSC)
+    all_seqlengths <- all_seqlengths[names(all_seqlengths) %in% seqnames(gr_mc)]
+    seqlengths(gr_mc) <- all_seqlengths
+    
+    gr_mc <- GenomicRanges::trim(gr_mc)
+    strand(gr_mc) <- "+"
+
+    gr_mc$score <- as.numeric(gr_mc$pc)
+    gr_mc$pc <- NULL
+    
+    # Write the output file
+    message("Writing output file...")
+    export.bw(object = gr_mc, con = out_path)
+    
+    message("Done!")
+}
+
+
+
+
+
+```
+
