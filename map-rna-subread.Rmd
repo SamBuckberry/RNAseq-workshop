@@ -17,7 +17,7 @@ library(stringr)
 ```
 
 Build the Rsubread alignment index
-```{r}
+```{r, cache=TRUE}
 buildindex(basename="GRCh38",
            reference="/home/data/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
 ```
@@ -118,7 +118,6 @@ saveRDS(object = tx_counts, file = "Effector_CD4pos_transcript_counts.Rds")
 ```{r}
 system("multiqc --force --module featureCounts .")
 ```
-
 
 ===
 

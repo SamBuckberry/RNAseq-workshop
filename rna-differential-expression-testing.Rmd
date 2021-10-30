@@ -1,0 +1,158 @@
+---
+title: "RNA-seq differential expression testing"
+author: "Sam Buckberry"
+date: "30/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(magrittr)
+library(stringr)
+library(edgeR)
+```
+
+Load the sample data
+```{r}
+mdat <- read.csv("metadata/sample_data.csv")
+```
+
+Load the gene and transcript counts data
+```{r}
+gene_counts <- readRDS("Effector_CD4pos_gene_counts.Rds") 
+tx_counts <- readRDS("Effector_CD4pos_transcript_counts.Rds")
+```
+
+
+
+Create the DGElist object for using edgeR
+```{r}
+sample_ids <- gene_counts$targets %>% str_remove("_filt_fastp.bam")
+y <- DGEList(counts = gene_counts$counts, samples = sample_ids)
+
+```
+
+Add treatment group data to the DGElist
+If samples are all the correct order for the counts table and the sample metadata, you only need to do `y$samples$group <- mdat$Treatment`. However, the following code will check if all the samples are in the correct order. If you like, change the row order of the metadata by doing `mdat <- mdat[c(1,3,2,4), ]` and see if the code below corrects it. 
+
+```{r}
+
+# Check sample metadata and count data are in the same order, if not, fix. 
+if (all(y$samples$samples == mdat$Sample)){
+    y$samples$group <- mdat$Treatment
+} else {
+    ind <- match(y$samples$samples, mdat$Sample)
+    mdat <- mdat[ind, ]
+    stopifnot(mdat$Sample == y$samples$samples)
+    y$samples$group <- mdat$Treatment
+}
+
+# Change to group to class factor (makes things easier later)
+y$samples$group <- factor(y$samples$group,
+                          levels=c("Unstimulated", "Stimulated"))
+
+
+```
+
+### Design matrix for differential testing
+```{r}
+design <- model.matrix(~ 0 + y$samples$group)
+design
+# Clean up the column names (will make things easier later)
+colnames(design) <- c("Stimulated", "Unstimulated")
+design
+```
+
+### Filter genes/transcripts
+
+```{r}
+keep <- filterByExpr(y, group = y$samples$group)
+table(keep)
+
+y <- y[keep, , keep.lib.sizes=FALSE]
+```
+
+### Calculate normalisation factors
+```{r}
+y <- calcNormFactors(y)
+y$samples
+```
+
+### Estimate dispersions
+```{r}
+y <- estimateDisp(y)
+```
+
+### MDS Plot
+How do the samples group based on the genes with the largest differences? Do they group by sample donor or by treatment group? In this type of plot, you want to look for outliers. 
+
+```{r}
+plotMDS(y, labels = y$samples$group)
+```
+
+### Boxplots
+
+Boxplots of log2 counts for each sample
+```{r, fig.height=5}
+boxplot(log2(y$counts + 1), labels=y$samples$samples)
+```
+
+```{r}
+y$cpm <- cpm(y)
+boxplot(log2(y$cpm+1))
+```
+
+```{r}
+y$cpm <- cpm(y)
+boxplot(log2(y$cpm+1))
+```
+
+### Voom
+```{r}
+v <- voom(counts = y, design = design, plot = T)
+```
+
+
+### Fitting linear models in Limma
+
+
+```{r}
+fit <- lmFit(object = v, design = design)
+head(coef(fit))
+```
+```{r}
+contr <- makeContrasts(Stimulated - Unstimulated, levels = colnames(coef(fit)))
+contr
+```
+
+
+Estimate contrasts for each gene
+```{r}
+fit2 <- contrasts.fit(fit, contr)
+```
+
+Empirical Bayes smoothing of standard errors (shrinks standard errors that are much larger or smaller than those from other genes towards the average standard error) (see https://www.degruyter.com/doi/10.2202/1544-6115.1027)
+```{r}
+eb <- eBayes(fit2)
+```
+
+Check out the top differential expressed genes
+```{r}
+tt <- topTable(eb)
+```
+
+How many DE genes are there?
+```{r}
+length(which(eb$adj.P.Val < 0.05))
+```
+
+Plot normalised gene expression for top genes
+```{r}
+
+```
+
+
+
