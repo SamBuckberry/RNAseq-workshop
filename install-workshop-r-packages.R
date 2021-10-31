@@ -1,18 +1,21 @@
 #!/bin/R
 
+### install Bioconductor packages
 if (!requireNamespace("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 
-BiocManager::install(c("Rfastp", "QuasR", "Rsubread"))
+bioc_packages <- c("Rfastp", "QuasR", "Rsubread", "wiggleplotr",
+                   "edgeR", "gprofiler2")
 
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
+BiocManager::install(bioc_packages)
 
-BiocManager::install("Rhisat2")
-BiocManager::install("Rsubread")
+### Install from CRAN using bioc to ensure version compatability
+cran_package <- c("magrittr", "tidyr", "stringr", "ggplot2", "pheatmap")
 
-library(Rhisat2)
-library(QuasR)
+BiocManager::install(pkgs = cran_package, site_repository = "CRAN")
+
+### Install packages that are required outside of R
+### Note that this requires pip3 to be installed
 
 system(command = "pip3 install multiqc")
 

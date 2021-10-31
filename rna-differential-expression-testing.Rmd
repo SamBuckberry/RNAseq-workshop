@@ -13,6 +13,10 @@ knitr::opts_chunk$set(echo = TRUE)
 library(magrittr)
 library(stringr)
 library(edgeR)
+library(ggplot2)
+library(pheatmap)
+library(gprofiler2)
+library(wiggleplotr)
 ```
 
 Load the sample data
@@ -25,8 +29,6 @@ Load the gene and transcript counts data
 gene_counts <- readRDS("Effector_CD4pos_gene_counts.Rds") 
 tx_counts <- readRDS("Effector_CD4pos_transcript_counts.Rds")
 ```
-
-
 
 Create the DGElist object for using edgeR
 ```{r}
@@ -112,13 +114,29 @@ boxplot(log2(y$cpm+1))
 
 ### Voom
 ```{r}
-v <- voom(counts = y, design = design, plot = T)
+v <- voom(counts = y, design = design, plot = TRUE)
 ```
 
 
-### Fitting linear models in Limma
+```{r}
+boxplot(v$E)
+```
+
+If you want to normalise further using quantile normalisation
+```{r}
+vq <- voom(counts = y, design = design, plot = TRUE,
+           normalize.method = "quantile")
+```
+
+```{r}
+boxplot(vq$E)
+```
 
 
+
+### Differential expression testing
+
+Fitting linear models in Limma
 ```{r}
 fit <- lmFit(object = v, design = design)
 head(coef(fit))
@@ -127,7 +145,6 @@ head(coef(fit))
 contr <- makeContrasts(Stimulated - Unstimulated, levels = colnames(coef(fit)))
 contr
 ```
-
 
 Estimate contrasts for each gene
 ```{r}
@@ -141,7 +158,7 @@ eb <- eBayes(fit2)
 
 Check out the top differential expressed genes
 ```{r}
-tt <- topTable(eb)
+topTable(eb)
 ```
 
 How many DE genes are there?
@@ -149,10 +166,107 @@ How many DE genes are there?
 length(which(eb$adj.P.Val < 0.05))
 ```
 
+Put all DE testing results into an object for plotting and saving
+```{r}
+tt <- topTable(eb, number = nrow(v))
+tt$Significant <- abs(tt$logFC > 1) & tt$adj.P.Val < 0.05
+```
+
+### Differential expression summary plots
+
+Volcano plot
+```{r}
+gg_volcano <- ggplot(tt, aes(x = logFC, y = -log10(P.Value), fill=Significant)) +
+    geom_point(alpha=0.5) +
+    geom_vline(xintercept = c(-1, 1), linetype="dashed") +
+    
+gg_volcano
+```
+
+MA plot
+```{r}
+gg_ma <- ggplot(tt, aes(x = AveExpr, y = logFC, fill=Significant)) +
+    geom_point(alpha=0.5) +
+    geom_vline(xintercept = c(1), linetype="dashed") +
+    geom_hline(yintercept = c(-1, 1), linetype="dashed")
+    
+gg_ma
+```
+
+### Significant gene plots
+
+DE gene heatmap of top 100 DE genes
+```{r, fig.height=2, fig.width=1}
+top_de_cpm <- v$E[rownames(v$E) %in% rownames(tt)[1:100], ]
+
+pheatmap(top_de_cpm, scale = "row", show_rownames = FALSE)
+```
+
 Plot normalised gene expression for top genes
 ```{r}
+plot_gene <- function(gene_ids){
+    
+    # Get the normalised expression data for the selected genes
+    dat <- v$E[rownames(v$E) %in% gene_ids, ] %>% 
+        data.frame()
+    colnames(dat) <- v$targets$samples
+    
+    # Re-shape the data into the ggplot preffered long format
+    dat <- tibble::rownames_to_column(dat, var = "gene_id") %>%
+        tidyr::gather(sample, value, -gene_id)
+    
+    # Add the group data
+    dat$group <- v$targets$group[match(dat$sample, v$targets$samples)]
+    
+    # plot the gene expression vaues
+    ggplot(data = dat, aes(x = group, y = value)) + 
+        geom_point(size=3, alpha=0.5) +
+        facet_wrap(~gene_id, scales = "free_y") +
+        ylab("Normalised gene expression") +
+        theme_bw()
+        
+}
+
+my_top_genes <- rownames(tt)[1:6]
+
+plot_gene(gene_ids = my_top_genes)
 
 ```
 
+### Genome browser track plots
+```{r}
+txdb <- makeTxDbFromGFF(file = "reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
+                        format = "gtf")
 
+exons <- exonsBy(txdb, by = "gene")
+cdss <- cdsBy(txdb, by = "gene")
+
+track_dat <- data.frame()
+
+selected_transcripts < my_top_genes
+
+wiggleplotr::plotCoverage(exons = exons[my_top_genes],
+                          cdss = cdss[my_top_genes], 
+             ncoa7_metadata, track_data,
+             heights = c(2,1), fill_palette = getGenotypePalette(),
+             mean_only = FALSE, alpha = 0.5)
+
+```
+
+### Ontology testing
+```{r}
+ontology_result <- gprofiler2::gost(query = rownames(tt)[1:100])
+head(ontology_result$result)
+```
+
+Plot ontology result
+```{r}
+gprofiler2::gostplot(ontology_result)
+```
+
+
+Session information
+```{r}
+sessionInfo()
+```
 
