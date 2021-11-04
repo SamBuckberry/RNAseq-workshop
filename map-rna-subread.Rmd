@@ -11,15 +11,15 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(Rsubread)
-library(DT)
+#library(DT)
 library(magrittr)
 library(stringr)
 ```
 
 Build the Rsubread alignment index
 ```{r, cache=TRUE}
-buildindex(basename="GRCh38",
-           reference="/home/data/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
+buildindex(basename="reference/GRCh38_chr22",
+           reference="reference/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
 ```
 
 Command to align one sample (no need to run)
@@ -35,14 +35,17 @@ Write a function to align all samples. Here the inputs are the `.fastq.gz` files
 ```{r}
 # function to align all samples
 
-r1_list <- list.files(".", pattern = "_filt_fastp_R1.fastq.gz",
+r1_list <- list.files("fastq/", pattern = "_filt_fastp_R1.fastq.gz",
                       full.names = TRUE)
 
-r2_list <- list.files(".", pattern = "_filt_fastp_R2.fastq.gz",
+r2_list <- list.files("fastq/", pattern = "_filt_fastp_R2.fastq.gz",
                       full.names = TRUE)
 
 bam_list <- basename(r1_list) %>%
     str_replace("_R1.fastq.gz", ".bam")
+
+dir.create("aligned_data")
+bam_list <- str_c("aligned_data/", bam_list)
 
 fq_df <- data.frame(r1 = r1_list, r2 = r2_list, bam = bam_list)
 
@@ -52,8 +55,9 @@ all(file.exists(c(r1_list, r2_list)))
 # Function to align reads for each sample
 align_list <- function(x){
   
-  align(index="GRCh38",
+  align(index="reference/GRCh38_chr22",
         type = "rna",
+        sortReadsByCoordinates = TRUE,
         useAnnotation = TRUE,
         annot.ext = "reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
         isGTF = TRUE,
@@ -67,13 +71,15 @@ align_list <- function(x){
 align_dat <- lapply(1:nrow(fq_df), align_list)
 ```
 
-Convert alignment data into matrix and view as table
+Convert alignment data into matrix and view as table. 
+
+See if you can transform these data to assess percentage of aligned fragments. 
 ```{r}
 align_dat <- do.call(cbind, align_dat)
 datatable(align_dat)
 ```
 
-Create the table of counts for genes
+Create the table of counts for genes and transcripts using the `featureCounts` function from Subread. 
 ```{r}
 # Check BAM files exist
 stopifnot(file.exists(fq_df$bam))
@@ -83,7 +89,6 @@ gtf_path <- "reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz"
 
 ### Calculate gene counts
 gene_counts <- featureCounts(files = fq_df$bam,
-                             reportReadsPath = "",
                              GTF.attrType = "gene_id",
                              annot.ext = gtf_path,
                              isGTFAnnotationFile = TRUE,
@@ -108,6 +113,13 @@ Inspect transcript count statistics
 ```{r}
 datatable(tx_counts$stat)
 ```
+
+Inspect the counts table
+```{r}
+head(gene_counts$)
+```
+
+
 
 Save the counts objects to use in downstream analyses.
 ```{r}

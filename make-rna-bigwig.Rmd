@@ -13,7 +13,6 @@ library(magrittr)
 library(edgeR)
 ```
 
-
 Sort the bam files
 ```{r}
 bams <- list.files(path = ".", pattern = "filt_fastp.bam$",

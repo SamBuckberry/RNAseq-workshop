@@ -22,40 +22,31 @@ library(wiggleplotr)
 Load the sample data
 ```{r}
 mdat <- read.csv("metadata/sample_data.csv")
+mdat
 ```
 
 Load the gene and transcript counts data
 ```{r}
-gene_counts <- readRDS("Effector_CD4pos_gene_counts.Rds") 
-tx_counts <- readRDS("Effector_CD4pos_transcript_counts.Rds")
+gene_counts <- readRDS("processed_data/Effector_CD4pos_ALL_gene_counts.Rds") 
+tx_counts <- readRDS("processed_data/Effector_CD4pos_ALL_transcript_counts.Rds")
 ```
+
+Ensure metadata and data labels are in the same order
+```{r}
+if (all(mdat$Bam != gene_counts$targets)){
+    ind <- match(gene_counts$targets, mdat$Bam)
+    mdat <- mdat[ind, ]
+}
+
+stopifnot(all(mdat$Bam == gene_counts$targets))
+```
+
 
 Create the DGElist object for using edgeR
 ```{r}
-sample_ids <- gene_counts$targets %>% str_remove("_filt_fastp.bam")
-y <- DGEList(counts = gene_counts$counts, samples = sample_ids)
-
-```
-
-Add treatment group data to the DGElist
-If samples are all the correct order for the counts table and the sample metadata, you only need to do `y$samples$group <- mdat$Treatment`. However, the following code will check if all the samples are in the correct order. If you like, change the row order of the metadata by doing `mdat <- mdat[c(1,3,2,4), ]` and see if the code below corrects it. 
-
-```{r}
-
-# Check sample metadata and count data are in the same order, if not, fix. 
-if (all(y$samples$samples == mdat$Sample)){
-    y$samples$group <- mdat$Treatment
-} else {
-    ind <- match(y$samples$samples, mdat$Sample)
-    mdat <- mdat[ind, ]
-    stopifnot(mdat$Sample == y$samples$samples)
-    y$samples$group <- mdat$Treatment
-}
-
-# Change to group to class factor (makes things easier later)
-y$samples$group <- factor(y$samples$group,
-                          levels=c("Unstimulated", "Stimulated"))
-
+y <- DGEList(counts = gene_counts$counts,
+             samples = mdat$Sample,
+             group = mdat$Treatment)
 
 ```
 
@@ -68,10 +59,15 @@ colnames(design) <- c("Stimulated", "Unstimulated")
 design
 ```
 
-### Filter genes/transcripts
-
+Boxplot of CPM normalised expression for each sample
 ```{r}
-keep <- filterByExpr(y, group = y$samples$group)
+boxplot(cpm(y, log=TRUE), names=y$samples$samples)
+```
+
+
+Filter genes/transcripts to remove genes with low counts that would not be useful in statistical testing
+```{r}
+keep <- filterByExpr(y)
 table(keep)
 
 y <- y[keep, , keep.lib.sizes=FALSE]
@@ -85,13 +81,14 @@ y$samples
 
 ### Estimate dispersions
 ```{r}
-y <- estimateDisp(y)
+y <- estimateDisp(y, robust = TRUE)
 ```
 
 ### MDS Plot
 How do the samples group based on the genes with the largest differences? Do they group by sample donor or by treatment group? In this type of plot, you want to look for outliers. 
 
 ```{r}
+plotMDS(y, labels = y$samples$samples)
 plotMDS(y, labels = y$samples$group)
 ```
 
@@ -99,27 +96,28 @@ plotMDS(y, labels = y$samples$group)
 
 Boxplots of log2 counts for each sample
 ```{r, fig.height=5}
-boxplot(log2(y$counts + 1), labels=y$samples$samples)
+boxplot(cpm(y, log=TRUE), names=y$samples$samples)
 ```
 
+Differential testing using the exact test in edgeR
 ```{r}
-y$cpm <- cpm(y)
-boxplot(log2(y$cpm+1))
+et <- exactTest(y)
+tt <- topTags(et, n = nrow(y))
 ```
 
+How many DE genes are there with FDR < 0.05 and logFC > 1?
 ```{r}
-y$cpm <- cpm(y)
-boxplot(log2(y$cpm+1))
+sum((tt$table$FDR < 0.05) & (abs(tt$table$logFC) > 1))
 ```
 
-### Voom
+### Differential testing using Limma-Voom
 ```{r}
 v <- voom(counts = y, design = design, plot = TRUE)
 ```
 
 
-```{r}
-boxplot(v$E)
+```{r, fig.height=5}
+boxplot(v$E, names=v$targets$samples)
 ```
 
 If you want to normalise further using quantile normalisation
@@ -139,8 +137,9 @@ boxplot(vq$E)
 Fitting linear models in Limma
 ```{r}
 fit <- lmFit(object = v, design = design)
-head(coef(fit))
 ```
+
+Make the contrasts matrix
 ```{r}
 contr <- makeContrasts(Stimulated - Unstimulated, levels = colnames(coef(fit)))
 contr
@@ -161,43 +160,43 @@ Check out the top differential expressed genes
 topTable(eb)
 ```
 
-How many DE genes are there?
-```{r}
-length(which(eb$adj.P.Val < 0.05))
-```
-
 Put all DE testing results into an object for plotting and saving
 ```{r}
-tt <- topTable(eb, number = nrow(v))
-tt$Significant <- abs(tt$logFC > 1) & tt$adj.P.Val < 0.05
+tt2 <- topTable(eb, number = nrow(v))
+tt2$Significant <- ((abs(tt2$logFC) > 1) & (tt2$adj.P.Val < 0.05))
+```
+
+How many DE genes are there?
+```{r}
+table(tt2$Significant)
 ```
 
 ### Differential expression summary plots
 
 Volcano plot
 ```{r}
-gg_volcano <- ggplot(tt, aes(x = logFC, y = -log10(P.Value), fill=Significant)) +
+gg_volcano <- ggplot(tt2, aes(x = logFC, y = -log10(P.Value),
+                             fill=Significant, colour=Significant)) +
     geom_point(alpha=0.5) +
-    geom_vline(xintercept = c(-1, 1), linetype="dashed") +
-    
+    geom_vline(xintercept = c(-1, 1), linetype="dashed")
 gg_volcano
 ```
 
 MA plot
 ```{r}
-gg_ma <- ggplot(tt, aes(x = AveExpr, y = logFC, fill=Significant)) +
+gg_ma <- ggplot(tt2, aes(x = AveExpr, y = logFC, colour=Significant)) +
     geom_point(alpha=0.5) +
     geom_vline(xintercept = c(1), linetype="dashed") +
     geom_hline(yintercept = c(-1, 1), linetype="dashed")
-    
 gg_ma
 ```
 
 ### Significant gene plots
 
-DE gene heatmap of top 100 DE genes
-```{r, fig.height=2, fig.width=1}
-top_de_cpm <- v$E[rownames(v$E) %in% rownames(tt)[1:100], ]
+DE gene heatmap of DE genes
+```{r, fig.height=1.5, fig.width=1}
+top_de_cpm <- v$E[rownames(v$E) %in% rownames(tt2)[tt2$Significant == TRUE], ]
+colnames(top_de_cpm) <- v$targets$samples
 
 pheatmap(top_de_cpm, scale = "row", show_rownames = FALSE)
 ```
@@ -227,7 +226,7 @@ plot_gene <- function(gene_ids){
         
 }
 
-my_top_genes <- rownames(tt)[1:6]
+my_top_genes <- rownames(tt2)[tt2$Significant == TRUE][1:6]
 
 plot_gene(gene_ids = my_top_genes)
 
@@ -255,7 +254,7 @@ wiggleplotr::plotCoverage(exons = exons[my_top_genes],
 
 ### Ontology testing
 ```{r}
-ontology_result <- gprofiler2::gost(query = rownames(tt)[1:100])
+ontology_result <- gprofiler2::gost(query = rownames(tt2)[tt2$Significant])
 head(ontology_result$result)
 ```
 
@@ -263,7 +262,6 @@ Plot ontology result
 ```{r}
 gprofiler2::gostplot(ontology_result)
 ```
-
 
 Session information
 ```{r}

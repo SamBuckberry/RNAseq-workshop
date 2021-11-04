@@ -5,7 +5,7 @@ date: "23/10/2021"
 output: html_document
 ---
 Load R libraries 
-```{r}
+```{r, message=FALSE}
 library(stringr)
 library(magrittr)
 library(Rfastp)
@@ -16,6 +16,8 @@ library(cowplot)
 
 ### FASTQ quality control and filtering
 
+
+Example (no need to run)
 ```{r, cache=TRUE, eval=FALSE}
 read1 <- "fastq/1001-Effector_CD4pos_T-S_chr22_R1.fastq.gz"
 read2 <- "fastq/1001-Effector_CD4pos_T-S_chr22_R2.fastq.gz"
@@ -33,7 +35,7 @@ fastp_json_report <- rfastp(read1 = read1, read2 = read2,
 ```
 
 Write a function to process all the samples. 
-```{r, cache=TRUE}
+```{r, cache=TRUE, message=FALSE}
 r1_list <- list.files(path = "fastq/",
                       pattern = "chr22_R1.fastq.gz",
                       full.names = TRUE)
@@ -43,7 +45,7 @@ r2_list <- list.files(path = "fastq/",
                       full.names = TRUE)
 
 fq_df <- data.frame(r1 = r1_list, r2 = r2_list,
-                    prefix = str_replace(basename(r1_list),
+                    prefix = str_replace(r1_list,
                                         pattern = "_chr22_R1.fastq.gz",
                                         replacement = "_filt_fastp"))
 
@@ -63,7 +65,7 @@ report_list <- lapply(1:nrow(fq_df), multi_fastp)
 
 ```
 
-Generate a table statistics
+Generate a table of statistics
 ```{r}
 
 # Short function to extract summary data from fastp
