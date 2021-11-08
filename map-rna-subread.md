@@ -880,8 +880,8 @@ head(gene_counts$counts)
 Save the counts objects to use in downstream analyses.
 
 ``` r
-saveRDS(object = gene_counts, file = "Effector_CD4pos_gene_counts_chr22.Rds")
-saveRDS(object = tx_counts, file = "Effector_CD4pos_transcript_counts_chr22.Rds")
+saveRDS(object = gene_counts, file = "processed_data/Effector_CD4pos_gene_counts_chr22.Rds")
+saveRDS(object = tx_counts, file = "processed_data/Effector_CD4pos_transcript_counts_chr22.Rds")
 ```
 
 \===
@@ -899,7 +899,7 @@ sessionInfo()
     ## LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
     ## 
     ## locale:
-    ## [1] en_AU.UTF-8
+    ## [1] en_AU.UTF-8/en_AU.UTF-8/en_AU.UTF-8/C/en_AU.UTF-8/en_AU.UTF-8
     ## 
     ## attached base packages:
     ## [1] stats     graphics  grDevices utils     datasets  methods   base     
@@ -908,10 +908,8 @@ sessionInfo()
     ## [1] DT_0.19        stringr_1.4.0  magrittr_2.0.1 Rsubread_2.4.3
     ## 
     ## loaded via a namespace (and not attached):
-    ##  [1] knitr_1.36        lattice_0.20-45   R6_2.5.1          rlang_0.4.12     
-    ##  [5] fastmap_1.1.0     highr_0.9         tools_4.0.3       webshot_0.5.2    
-    ##  [9] grid_4.0.3        xfun_0.27         jquerylib_0.1.4   htmltools_0.5.2  
-    ## [13] crosstalk_1.1.1   yaml_2.2.1        digest_0.6.28     processx_3.5.2   
-    ## [17] Matrix_1.3-4      callr_3.7.0       ps_1.6.0          sass_0.4.0       
-    ## [21] htmlwidgets_1.5.4 codetools_0.2-18  evaluate_0.14     rmarkdown_2.11   
-    ## [25] stringi_1.7.5     compiler_4.0.3    bslib_0.3.1       jsonlite_1.7.2
+    ##  [1] codetools_0.2-18  lattice_0.20-45   digest_0.6.28     grid_4.0.3       
+    ##  [5] evaluate_0.14     rlang_0.4.12      stringi_1.7.5     Matrix_1.3-4     
+    ##  [9] rmarkdown_2.11    tools_4.0.3       htmlwidgets_1.5.4 xfun_0.27        
+    ## [13] yaml_2.2.1        fastmap_1.1.0     compiler_4.0.3    htmltools_0.5.2  
+    ## [17] knitr_1.36

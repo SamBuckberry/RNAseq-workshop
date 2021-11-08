@@ -27,6 +27,7 @@ Otherwise you can clone this repository in a bash terminal:
 - Were spike-in controls used?
 - What sequencing platform was used?
 - What is the sequencing paired-end or single-end?
+- What was the target sequencing depth?
 
 ---
 
@@ -41,22 +42,23 @@ This section covers:
 Follow the workflow in the [fastq-quality-control.Rmd](fastq-quality-control.Rmd) file to generate your own report, or inspect the pre-processed [fastq-quality-control.md](fastq-quality-control.md) in this repository. 
 
 ### Alignment 
-Follow the workflow in the `map-rna-subread` Rmd or html file which covers:
+This section covers:
 
 - Build an alignment index Select reference genome (FASTA files) and gene models (GTF/GFF files)
 - Align fastq files to index
 - Inspect alignment statistics
+- Generate gene/transcript counts tables
 
-### Post alignment
-Follow the workflow in the `
+Follow the workflow in the [map-rna-subread.Rmd](map-rna-subread.Rmd) file to generate your own report, or inspect the pre-processed [map-rna-subread.md](map-rna-subread.md) in this repository. 
 
-- Sort and post-processing BAM/SAM files
-- Perform gene and/or transcript quantificaion
+### Post-alignment
+This section covers:`
+
 - Inspect quantification metrics, and aggregate plots to indentify problematic samples or batch effects. 
 - Test for differential expressed genes
 - Inspect differential testing plots to identify potential issues with normalisation
 - Plot differentially expressed genes 
-- Perform Ontology testing to identify biological pathways and functions associated with experimental treatment(s). 
+- Perform Ontology testing to identify biological pathways and functions associated with experimental treatment(s) 
 
 ### Optional: _de novo_ Transcript asssembly
 - HISAT2 alignment 

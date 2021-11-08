@@ -1,13 +1,14 @@
 ---
 title: "RNA-seq differential expression testing"
-author: "Sam Buckberry"
-date: "30/10/2021"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+So far in this workshop, we have been working with a subset of RNA-seq data that originates from chromosome 22 genes in order for the data processing to be efficient. However, for this section, we can analyse the data for all genes that has been pre-processed and saved in this GitHub repository. 
+
 
 ```{r, message=FALSE}
 library(magrittr)
@@ -17,22 +18,24 @@ library(ggplot2)
 library(pheatmap)
 library(gprofiler2)
 library(wiggleplotr)
+library(GenomicFeatures)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 ```
 
-Load the sample data
-```{r}
+To get started, load the sample data which has sample IDs and the BAM file identifiers in our counts matrix
+```{r, cache=TRUE}
 mdat <- read.csv("metadata/sample_data.csv")
 mdat
 ```
 
-Load the gene and transcript counts data
-```{r}
+And then load the gene and transcript counts data
+```{r, cache=TRUE}
 gene_counts <- readRDS("processed_data/Effector_CD4pos_ALL_gene_counts.Rds") 
 tx_counts <- readRDS("processed_data/Effector_CD4pos_ALL_transcript_counts.Rds")
 ```
 
-Ensure metadata and data labels are in the same order
-```{r}
+Next, let's ensure metadata and data labels are in the same order
+```{r, cache=TRUE}
 if (all(mdat$Bam != gene_counts$targets)){
     ind <- match(gene_counts$targets, mdat$Bam)
     mdat <- mdat[ind, ]
@@ -41,140 +44,133 @@ if (all(mdat$Bam != gene_counts$targets)){
 stopifnot(all(mdat$Bam == gene_counts$targets))
 ```
 
-
-Create the DGElist object for using edgeR
-```{r}
+Create the DGElist object for using edgeR. 
+```{r, cache=TRUE}
 y <- DGEList(counts = gene_counts$counts,
              samples = mdat$Sample,
              group = mdat$Treatment)
-
 ```
 
 ### Design matrix for differential testing
-```{r}
+```{r, cache=TRUE}
 design <- model.matrix(~ 0 + y$samples$group)
-design
+
 # Clean up the column names (will make things easier later)
 colnames(design) <- c("Stimulated", "Unstimulated")
 design
 ```
 
-Boxplot of CPM normalised expression for each sample
-```{r}
+Boxplot of counts-per-million (CPM) normalised expression for each sample. This allows us to inspect the distribution of library size normalised gene expression values. 
+```{r, cache=TRUE, fig.height=5}
 boxplot(cpm(y, log=TRUE), names=y$samples$samples)
 ```
 
-
-Filter genes/transcripts to remove genes with low counts that would not be useful in statistical testing
-```{r}
+Next we filter genes/transcripts to remove features with low counts that would not be useful in statistical testing. edgeR has a handy function for this called `filterByExpr` that filters features that do not have sufficient counts for differential expression testing. 
+```{r, cache=TRUE}
 keep <- filterByExpr(y)
 table(keep)
 
 y <- y[keep, , keep.lib.sizes=FALSE]
 ```
 
-### Calculate normalisation factors
-```{r}
+Boxplots of log2 counts for each sample now the data have been filtered
+```{r, fig.height=5, cache=TRUE}
+boxplot(cpm(y, log=TRUE), names=y$samples$samples)
+```
+
+Calculate normalisation factors and dispersions used in differential expression testing
+```{r, cache=TRUE}
 y <- calcNormFactors(y)
 y$samples
 ```
-
-### Estimate dispersions
-```{r}
+```{r, cache=TRUE}
 y <- estimateDisp(y, robust = TRUE)
 ```
 
-### MDS Plot
-How do the samples group based on the genes with the largest differences? Do they group by sample donor or by treatment group? In this type of plot, you want to look for outliers. 
+**Plot samples using multi-dimensional scaling** How do the samples group based on the genes with the largest differences? Do they group by sample donor or by treatment group? In this type of plot, you want to look for outliers. 
 
-```{r}
+```{r, cache=TRUE}
 plotMDS(y, labels = y$samples$samples)
 plotMDS(y, labels = y$samples$group)
 ```
 
-### Boxplots
-
-Boxplots of log2 counts for each sample
-```{r, fig.height=5}
-boxplot(cpm(y, log=TRUE), names=y$samples$samples)
-```
-
 Differential testing using the exact test in edgeR
-```{r}
+```{r, cache=TRUE}
 et <- exactTest(y)
 tt <- topTags(et, n = nrow(y))
 ```
 
 How many DE genes are there with FDR < 0.05 and logFC > 1?
-```{r}
+```{r, cache=TRUE}
 sum((tt$table$FDR < 0.05) & (abs(tt$table$logFC) > 1))
 ```
 
 ### Differential testing using Limma-Voom
-```{r}
+```{r, cache=TRUE}
 v <- voom(counts = y, design = design, plot = TRUE)
 ```
 
 
-```{r, fig.height=5}
+```{r, fig.height=5, cache=TRUE}
 boxplot(v$E, names=v$targets$samples)
 ```
 
 If you want to normalise further using quantile normalisation
-```{r}
+```{r, cache=TRUE}
 vq <- voom(counts = y, design = design, plot = TRUE,
            normalize.method = "quantile")
 ```
 
-```{r}
+```{r, fig.height=5, cache=TRUE}
 boxplot(vq$E)
 ```
+Notice how the quantile normalisation made the distribtions of expression extimates for each library look more similar?
 
-
+> **_Challenge:_** From here, try to compare the results of using Limma Voom with and without quantile normalisation and see how this impacts your downstream results.
 
 ### Differential expression testing
 
 Fitting linear models in Limma
-```{r}
+```{r, cache=TRUE}
 fit <- lmFit(object = v, design = design)
 ```
 
 Make the contrasts matrix
-```{r}
+```{r, cache=TRUE}
 contr <- makeContrasts(Stimulated - Unstimulated, levels = colnames(coef(fit)))
 contr
 ```
 
 Estimate contrasts for each gene
-```{r}
+```{r, cache=TRUE}
 fit2 <- contrasts.fit(fit, contr)
 ```
 
 Empirical Bayes smoothing of standard errors (shrinks standard errors that are much larger or smaller than those from other genes towards the average standard error) (see https://www.degruyter.com/doi/10.2202/1544-6115.1027)
-```{r}
+```{r, cache=TRUE}
 eb <- eBayes(fit2)
 ```
 
 Check out the top differential expressed genes
-```{r}
+```{r, cache=TRUE}
 topTable(eb)
 ```
 
 Put all DE testing results into an object for plotting and saving
-```{r}
+```{r, cache=TRUE}
 tt2 <- topTable(eb, number = nrow(v))
 tt2$Significant <- ((abs(tt2$logFC) > 1) & (tt2$adj.P.Val < 0.05))
 ```
 
 How many DE genes are there?
-```{r}
+```{r, cache=TRUE}
 table(tt2$Significant)
 ```
 
 ### Differential expression summary plots
 
 Volcano plot
-```{r}
+```{r, cache=TRUE}
 gg_volcano <- ggplot(tt2, aes(x = logFC, y = -log10(P.Value),
                              fill=Significant, colour=Significant)) +
     geom_point(alpha=0.5) +
@@ -183,7 +179,7 @@ gg_volcano
 ```
 
 MA plot
-```{r}
+```{r, cache=TRUE}
 gg_ma <- ggplot(tt2, aes(x = AveExpr, y = logFC, colour=Significant)) +
     geom_point(alpha=0.5) +
     geom_vline(xintercept = c(1), linetype="dashed") +
@@ -194,7 +190,7 @@ gg_ma
 ### Significant gene plots
 
 DE gene heatmap of DE genes
-```{r, fig.height=1.5, fig.width=1}
+```{r, fig.height=1.5, fig.width=1, cache=TRUE}
 top_de_cpm <- v$E[rownames(v$E) %in% rownames(tt2)[tt2$Significant == TRUE], ]
 colnames(top_de_cpm) <- v$targets$samples
 
@@ -202,7 +198,7 @@ pheatmap(top_de_cpm, scale = "row", show_rownames = FALSE)
 ```
 
 Plot normalised gene expression for top genes
-```{r}
+```{r, cache=TRUE}
 plot_gene <- function(gene_ids){
     
     # Get the normalised expression data for the selected genes
@@ -233,12 +229,67 @@ plot_gene(gene_ids = my_top_genes)
 ```
 
 ### Genome browser track plots
-```{r}
-txdb <- makeTxDbFromGFF(file = "reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
-                        format = "gtf")
 
-exons <- exonsBy(txdb, by = "gene")
-cdss <- cdsBy(txdb, by = "gene")
+
+First, we download annotation data for our genes/transcripts from Ensembl
+```{r}
+library(biomaRt)
+ensembl_mart <- useMart("ENSEMBL_MART_ENSEMBL", host = "jan2020.archive.ensembl.org")
+
+ensembl_dataset <- useDataset("hsapiens_gene_ensembl", mart=ensembl_mart)
+ensembl_dataset
+
+attributes <- listAttributes(ensembl_dataset)
+head(attributes)
+
+selected_attributes <- c("ensembl_transcript_id", "ensembl_gene_id", 
+                        "external_gene_name", "strand", 
+                        "gene_biotype", "transcript_biotype")
+data <- getBM(attributes = selected_attributes, mart = ensembl_dataset)
+head(data)
+
+# rename the columns
+data <- dplyr::rename(data, 
+                     transcript_id = ensembl_transcript_id, 
+                     gene_id = ensembl_gene_id, 
+                     gene_name = external_gene_name)
+head(data)
+```
+
+And get the postions of exons
+```{r}
+exons <- exonsBy(EnsDb.Hsapiens.v86, by = "gene")
+```
+
+Then create a table of our bigwig files that we will use for plotting. 
+```{r}
+
+```
+
+And then use this information to plot the coverage of differential expressed genes for each sample
+```{r}
+plotTranscripts(exons = exons[my_top_genes[1]],  transcript_annotations = data, rescale_introns = TRUE)
+```
+
+
+
+
+
+
+```{r}
+require("org.Hs.eg.db")
+library("ensembldb")
+library("EnsDb.Hsapiens.v86")
+plotTranscriptsFromEnsembldb(EnsDb.Hsapiens.v86, gene_names = "NCOA7", 
+                             transcript_ids = c("ENST00000438495", "ENST00000392477"))
+
+plotTranscriptsFromUCSC(orgdb = org.Hs.eg.db, txdb = TxDb.Hsapiens.UCSC.hg38.knownGene, 
+                        gene_names = "NCOA7", transcript_ids = c("ENST00000438495.6", "ENST00000368357.7"))
+#txdb <- makeTxDbFromGFF(file = #"reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
+#                        format = "gtf")
+
+exons <- exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene, by = "gene")
+#cdss <- cdsBy(txdb, by = "gene")
 
 track_dat <- data.frame()
 
@@ -253,17 +304,17 @@ wiggleplotr::plotCoverage(exons = exons[my_top_genes],
 ```
 
 ### Ontology testing
-```{r}
+```{r, cache=TRUE}
 ontology_result <- gprofiler2::gost(query = rownames(tt2)[tt2$Significant])
 head(ontology_result$result)
 ```
 
 Plot ontology result
-```{r}
+```{r, cache=TRUE}
 gprofiler2::gostplot(ontology_result)
 ```
+===
 
-Session information
 ```{r}
 sessionInfo()
 ```

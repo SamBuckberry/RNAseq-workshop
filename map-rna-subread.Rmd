@@ -168,8 +168,8 @@ head(gene_counts$counts)
 
 Save the counts objects to use in downstream analyses.
 ```{r, cache=TRUE}
-saveRDS(object = gene_counts, file = "Effector_CD4pos_gene_counts_chr22.Rds")
-saveRDS(object = tx_counts, file = "Effector_CD4pos_transcript_counts_chr22.Rds")
+saveRDS(object = gene_counts, file = "processed_data/Effector_CD4pos_gene_counts_chr22.Rds")
+saveRDS(object = tx_counts, file = "processed_data/Effector_CD4pos_transcript_counts_chr22.Rds")
 ```
 
 ===
