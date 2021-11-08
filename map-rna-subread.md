@@ -48,7 +48,85 @@ library(Rsubread)
 library(magrittr)
 library(stringr)
 library(DT)
+library(rtracklayer)
 ```
+
+    ## Loading required package: GenomicRanges
+
+    ## Loading required package: stats4
+
+    ## Loading required package: BiocGenerics
+
+    ## Warning: package 'BiocGenerics' was built under R version 4.0.5
+
+    ## Loading required package: parallel
+
+    ## 
+    ## Attaching package: 'BiocGenerics'
+
+    ## The following objects are masked from 'package:parallel':
+    ## 
+    ##     clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    ##     clusterExport, clusterMap, parApply, parCapply, parLapply,
+    ##     parLapplyLB, parRapply, parSapply, parSapplyLB
+
+    ## The following objects are masked from 'package:stats':
+    ## 
+    ##     IQR, mad, sd, var, xtabs
+
+    ## The following objects are masked from 'package:base':
+    ## 
+    ##     anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    ##     dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    ##     grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    ##     order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    ##     rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    ##     union, unique, unsplit, which.max, which.min
+
+    ## Loading required package: S4Vectors
+
+    ## 
+    ## Attaching package: 'S4Vectors'
+
+    ## The following object is masked from 'package:base':
+    ## 
+    ##     expand.grid
+
+    ## Loading required package: IRanges
+
+    ## Loading required package: GenomeInfoDb
+
+    ## Warning: package 'GenomeInfoDb' was built under R version 4.0.5
+
+``` r
+library(Rsamtools)
+```
+
+    ## Loading required package: Biostrings
+
+    ## Loading required package: XVector
+
+    ## 
+    ## Attaching package: 'Biostrings'
+
+    ## The following object is masked from 'package:base':
+    ## 
+    ##     strsplit
+
+``` r
+library(stringr)
+library(magrittr)
+library(edgeR)
+```
+
+    ## Loading required package: limma
+
+    ## 
+    ## Attaching package: 'limma'
+
+    ## The following object is masked from 'package:BiocGenerics':
+    ## 
+    ##     plotMA
 
 First, we need to index the reference genome by building the Rsubread
 alignment index. It is reccomended to use the option `gappedIndex =
@@ -884,6 +962,230 @@ saveRDS(object = gene_counts, file = "processed_data/Effector_CD4pos_gene_counts
 saveRDS(object = tx_counts, file = "processed_data/Effector_CD4pos_transcript_counts_chr22.Rds")
 ```
 
+### Make Bigwig coverage files
+
+Bigwig coverage files can be used to generate many types of plots,
+including coverage heatmaps genome browser tracks
+
+To make the bigwig coverage files from the bam alignments, first make a
+list of the bam files
+
+``` r
+bams <- list.files(path = "aligned_data/", pattern = ".bam$",
+                   full.names = TRUE)
+
+bam_prefix <- str_replace_all(string = bams,
+                               pattern = ".bam",
+                               replacement = "_sorted")
+
+lapply(X = 1:length(bams), FUN = function(x){sortBam(bams[x], bam_prefix[x])})
+```
+
+    ## [[1]]
+    ## [1] "aligned_data//1001-Effector_CD4pos_T-S_filt_fastp_sorted_sorted.bam"
+    ## 
+    ## [[2]]
+    ## [1] "aligned_data//1001-Effector_CD4pos_T-S_filt_fastp_sorted.bam"
+    ## 
+    ## [[3]]
+    ## [1] "aligned_data//1001-Effector_CD4pos_T-U_filt_fastp_sorted_sorted.bam"
+    ## 
+    ## [[4]]
+    ## [1] "aligned_data//1001-Effector_CD4pos_T-U_filt_fastp_sorted.bam"
+    ## 
+    ## [[5]]
+    ## [1] "aligned_data//1003-Effector_CD4pos_T-S_filt_fastp_sorted_sorted.bam"
+    ## 
+    ## [[6]]
+    ## [1] "aligned_data//1003-Effector_CD4pos_T-S_filt_fastp_sorted.bam"
+    ## 
+    ## [[7]]
+    ## [1] "aligned_data//1003-Effector_CD4pos_T-U_filt_fastp_sorted_sorted.bam"
+    ## 
+    ## [[8]]
+    ## [1] "aligned_data//1003-Effector_CD4pos_T-U_filt_fastp_sorted.bam"
+
+Then a function for making bigwig files from bam files
+
+``` r
+bam_to_bigwig <- function(sorted_bam, CPM_normalise=TRUE){
+    
+    message(Sys.time())
+    message(str_c("Processing ", sorted_bam))
+
+    # Check inputs
+    stopifnot(length(sorted_bam) == 1)
+    stopifnot(length(CPM_normalise) == 1)
+    stopifnot(file.exists(sorted_bam))
+    stopifnot(is.logical(CPM_normalise))
+    
+    # Set outfile name
+    out_path <- str_replace(string = sorted_bam,
+                            pattern = ".bam$",
+                            replacement = ".bigwig")
+    
+    # Use samtools to pileup reads
+    message("Running samtools pileup...")
+    param <- Rsamtools::PileupParam(distinguish_strands=FALSE,
+                                distinguish_nucleotides = FALSE,
+                                max_depth=10000,
+                                min_base_quality=0)
+
+    pileup_dat <- Rsamtools::pileup(file = sorted_bam,
+                          pileupParam = param)
+    
+    # Convert to GRanges
+    gr <- GRanges(seqnames = pileup_dat$seqnames,
+                  ranges = IRanges(start = pileup_dat$pos,
+                                   end = pileup_dat$pos))
+    
+    # Get contig/chromosome lengths from BAM file
+    idx <- Rsamtools::idxstatsBam(sorted_bam)
+    used_seqlengths <- idx$seqlength
+    names(used_seqlengths) <- idx$seqnames
+    seqlengths(gr) <- used_seqlengths
+
+    # Normalise the data
+    if (CPM_normalise == TRUE){
+        message("Normalising data...")
+        pileup_dat$cpm <- edgeR::cpm(y = pileup_dat$count) %>% as.numeric()
+        gr$score <- as.numeric(pileup_dat$cpm)
+    } else if (CPM_normalise == FALSE){
+        gr$score <- as.numeric(pileup_dat$count)
+    }
+    
+    # Add strand info
+    strand(gr) <- "+"
+
+    # Write the output file
+    message(str_c("Writing ", out_path))
+    export.bw(object = gr, con = out_path)
+    message("Done!")
+}
+
+lapply(X = bams, FUN = bam_to_bigwig)
+```
+
+    ## 2021-11-08 19:56:31
+
+    ## Processing aligned_data//1001-Effector_CD4pos_T-S_filt_fastp_sorted.bam
+
+    ## Running samtools pileup...
+
+    ## Normalising data...
+
+    ## Writing aligned_data//1001-Effector_CD4pos_T-S_filt_fastp_sorted.bigwig
+
+    ## Done!
+
+    ## 2021-11-08 19:58:59
+
+    ## Processing aligned_data//1001-Effector_CD4pos_T-S_filt_fastp.bam
+
+    ## Running samtools pileup...
+
+    ## Normalising data...
+
+    ## Writing aligned_data//1001-Effector_CD4pos_T-S_filt_fastp.bigwig
+
+    ## Done!
+
+    ## 2021-11-08 20:01:25
+
+    ## Processing aligned_data//1001-Effector_CD4pos_T-U_filt_fastp_sorted.bam
+
+    ## Running samtools pileup...
+
+    ## Normalising data...
+
+    ## Writing aligned_data//1001-Effector_CD4pos_T-U_filt_fastp_sorted.bigwig
+
+    ## Done!
+
+    ## 2021-11-08 20:03:29
+
+    ## Processing aligned_data//1001-Effector_CD4pos_T-U_filt_fastp.bam
+
+    ## Running samtools pileup...
+
+    ## Normalising data...
+
+    ## Writing aligned_data//1001-Effector_CD4pos_T-U_filt_fastp.bigwig
+
+    ## Done!
+
+    ## 2021-11-08 20:05:31
+
+    ## Processing aligned_data//1003-Effector_CD4pos_T-S_filt_fastp_sorted.bam
+
+    ## Running samtools pileup...
+
+    ## Normalising data...
+
+    ## Writing aligned_data//1003-Effector_CD4pos_T-S_filt_fastp_sorted.bigwig
+
+    ## Done!
+
+    ## 2021-11-08 20:06:28
+
+    ## Processing aligned_data//1003-Effector_CD4pos_T-S_filt_fastp.bam
+
+    ## Running samtools pileup...
+
+    ## Normalising data...
+
+    ## Writing aligned_data//1003-Effector_CD4pos_T-S_filt_fastp.bigwig
+
+    ## Done!
+
+    ## 2021-11-08 20:07:30
+
+    ## Processing aligned_data//1003-Effector_CD4pos_T-U_filt_fastp_sorted.bam
+
+    ## Running samtools pileup...
+
+    ## Normalising data...
+
+    ## Writing aligned_data//1003-Effector_CD4pos_T-U_filt_fastp_sorted.bigwig
+
+    ## Done!
+
+    ## 2021-11-08 20:07:31
+
+    ## Processing aligned_data//1003-Effector_CD4pos_T-U_filt_fastp.bam
+
+    ## Running samtools pileup...
+
+    ## Normalising data...
+
+    ## Writing aligned_data//1003-Effector_CD4pos_T-U_filt_fastp.bigwig
+
+    ## Done!
+
+    ## [[1]]
+    ## NULL
+    ## 
+    ## [[2]]
+    ## NULL
+    ## 
+    ## [[3]]
+    ## NULL
+    ## 
+    ## [[4]]
+    ## NULL
+    ## 
+    ## [[5]]
+    ## NULL
+    ## 
+    ## [[6]]
+    ## NULL
+    ## 
+    ## [[7]]
+    ## NULL
+    ## 
+    ## [[8]]
+    ## NULL
+
 \===
 
 ``` r
@@ -902,14 +1204,30 @@ sessionInfo()
     ## [1] en_AU.UTF-8/en_AU.UTF-8/en_AU.UTF-8/C/en_AU.UTF-8/en_AU.UTF-8
     ## 
     ## attached base packages:
-    ## [1] stats     graphics  grDevices utils     datasets  methods   base     
+    ## [1] parallel  stats4    stats     graphics  grDevices utils     datasets 
+    ## [8] methods   base     
     ## 
     ## other attached packages:
-    ## [1] DT_0.19        stringr_1.4.0  magrittr_2.0.1 Rsubread_2.4.3
+    ##  [1] edgeR_3.32.1         limma_3.46.0         Rsamtools_2.6.0     
+    ##  [4] Biostrings_2.58.0    XVector_0.30.0       rtracklayer_1.50.0  
+    ##  [7] GenomicRanges_1.42.0 GenomeInfoDb_1.26.7  IRanges_2.24.1      
+    ## [10] S4Vectors_0.28.1     BiocGenerics_0.36.1  DT_0.19             
+    ## [13] stringr_1.4.0        magrittr_2.0.1       Rsubread_2.4.3      
     ## 
     ## loaded via a namespace (and not attached):
-    ##  [1] codetools_0.2-18  lattice_0.20-45   digest_0.6.28     grid_4.0.3       
-    ##  [5] evaluate_0.14     rlang_0.4.12      stringi_1.7.5     Matrix_1.3-4     
-    ##  [9] rmarkdown_2.11    tools_4.0.3       htmlwidgets_1.5.4 xfun_0.27        
-    ## [13] yaml_2.2.1        fastmap_1.1.0     compiler_4.0.3    htmltools_0.5.2  
-    ## [17] knitr_1.36
+    ##  [1] Rcpp_1.0.7                  compiler_4.0.3             
+    ##  [3] MatrixGenerics_1.2.1        bitops_1.0-7               
+    ##  [5] tools_4.0.3                 zlibbioc_1.36.0            
+    ##  [7] digest_0.6.28               evaluate_0.14              
+    ##  [9] lattice_0.20-45             rlang_0.4.12               
+    ## [11] Matrix_1.3-4                DelayedArray_0.16.3        
+    ## [13] yaml_2.2.1                  xfun_0.27                  
+    ## [15] fastmap_1.1.0               GenomeInfoDbData_1.2.4     
+    ## [17] knitr_1.36                  htmlwidgets_1.5.4          
+    ## [19] locfit_1.5-9.4              grid_4.0.3                 
+    ## [21] Biobase_2.50.0              XML_3.99-0.8               
+    ## [23] BiocParallel_1.24.1         rmarkdown_2.11             
+    ## [25] codetools_0.2-18            htmltools_0.5.2            
+    ## [27] matrixStats_0.61.0          GenomicAlignments_1.26.0   
+    ## [29] SummarizedExperiment_1.20.0 stringi_1.7.5              
+    ## [31] RCurl_1.98-1.5              crayon_1.4.2
