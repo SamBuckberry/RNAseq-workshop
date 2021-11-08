@@ -15,7 +15,7 @@ library(edgeR)
 
 Sort the bam files
 ```{r}
-bams <- list.files(path = ".", pattern = "filt_fastp.bam$",
+bams <- list.files(path = ".", pattern = ".bam$",
                    full.names = TRUE)
 
 bam_prefix <- str_replace_all(string = bams,
@@ -23,21 +23,19 @@ bam_prefix <- str_replace_all(string = bams,
                                replacement = "_sorted")
 
 lapply(X = 1:length(bams), FUN = function(x){sortBam(bams[x], bam_prefix[x])})
-
 ```
 
 Index the bam files
 ```{r}
-sorted_bams <- list.files(path = ".", pattern = "_sorted.bam$")
+sorted_bams <- list.files(path = "aligned_data/",
+                          pattern = "_sorted.bam$",
+                          full.names = TRUE)
 
 lapply(sorted_bams, indexBam)
 ```
 
-
+Make bigwig file from bam file
 ```{r}
-
-# Make bigwig file from bam file
-
 bam_to_bigwig <- function(sorted_bam, CPM_normalise=TRUE){
     
     message(Sys.time())
@@ -92,6 +90,8 @@ bam_to_bigwig <- function(sorted_bam, CPM_normalise=TRUE){
     export.bw(object = gr, con = out_path)
     message("Done!")
 }
+
+
 
 lapply(X = sorted_bams, FUN = bam_to_bigwig)
 ```

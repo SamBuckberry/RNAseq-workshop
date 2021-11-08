@@ -9,7 +9,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 So far in this workshop, we have been working with a subset of RNA-seq data that originates from chromosome 22 genes in order for the data processing to be efficient. However, for this section, we can analyse the data for all genes that has been pre-processed and saved in this GitHub repository. 
 
-
 ```{r, message=FALSE}
 library(magrittr)
 library(stringr)
@@ -19,7 +18,9 @@ library(pheatmap)
 library(gprofiler2)
 library(wiggleplotr)
 library(GenomicFeatures)
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(ensembldb)
+library(EnsDb.Hsapiens.v86)
+library(biomaRt)
 ```
 
 To get started, load the sample data which has sample IDs and the BAM file identifiers in our counts matrix
@@ -230,11 +231,10 @@ plot_gene(gene_ids = my_top_genes)
 
 ### Genome browser track plots
 
-
 First, we download annotation data for our genes/transcripts from Ensembl
-```{r}
-library(biomaRt)
-ensembl_mart <- useMart("ENSEMBL_MART_ENSEMBL", host = "jan2020.archive.ensembl.org")
+```{r, cache=TRUE}
+ensembl_mart <- useMart("ENSEMBL_MART_ENSEMBL",
+                        host = "jan2020.archive.ensembl.org")
 
 ensembl_dataset <- useDataset("hsapiens_gene_ensembl", mart=ensembl_mart)
 ensembl_dataset
@@ -244,66 +244,73 @@ head(attributes)
 
 selected_attributes <- c("ensembl_transcript_id", "ensembl_gene_id", 
                         "external_gene_name", "strand", 
-                        "gene_biotype", "transcript_biotype")
-data <- getBM(attributes = selected_attributes, mart = ensembl_dataset)
-head(data)
+                        "gene_biotype", "transcript_biotype",
+                        "chromosome_name", "start_position",
+                        "end_position")
 
-# rename the columns
-data <- dplyr::rename(data, 
+bm_data <- getBM(attributes = selected_attributes,
+                 mart = ensembl_dataset)
+head(bm_data)
+
+# rename the columns to suit the plotting functions
+bm_data <- dplyr::rename(bm_data, 
                      transcript_id = ensembl_transcript_id, 
                      gene_id = ensembl_gene_id, 
                      gene_name = external_gene_name)
-head(data)
+head(bm_data)
 ```
 
-And get the postions of exons
-```{r}
+And annotate the DE gene table
+```{r, cache=TRUE}
+ind <- match(rownames(tt2), bm_data$gene_id)
+tt_annotated <- cbind(tt2, bm_data[ind, ])
+```
+
+
+And get the postions of exons for plotting
+```{r, cache=TRUE}
 exons <- exonsBy(EnsDb.Hsapiens.v86, by = "gene")
 ```
 
-Then create a table of our bigwig files that we will use for plotting. 
-```{r}
+Then create a table of our bigwig files that we will use for plotting. Remember, our bigwig files we created earlier were only for chromosome 22 mapped reads, so we will have to limit our plotting to chromosome 22 differential genes here. 
+```{r, cache=TRUE}
+bw_files <- list.files(path = "aligned_data/",
+                       pattern = "bigwig$",
+                       full.names = TRUE)
 
+ids <- basename(bw_files) %>%
+    str_remove("_filt_fastp_sorted.bigwig") %>%
+    str_remove("Effector_CD4pos_")
+
+condition <- ifelse(test = grepl(pattern = "_T-S_", x = bw_files),
+                    yes = "Stimulated", "Unstimulated")
+
+bw_df <- data.frame(sample_id=ids, track_id=ids,
+                    scaling_factor=1, bigWig=bw_files, colour_group=condition)
+bw_df
+```
+
+Get the top DE genes from chromosome 22
+```{r, cache=TRUE}
+chr22_de_genes <- tt_annotated$gene_id[tt_annotated$Significant == TRUE & tt_annotated$chromosome_name == "22"]
 ```
 
 And then use this information to plot the coverage of differential expressed genes for each sample
-```{r}
-plotTranscripts(exons = exons[my_top_genes[1]],  transcript_annotations = data, rescale_introns = TRUE)
+```{r, cache=TRUE}
+plotCoverage(exons = exons[chr22_de_genes[1]], track_data = bw_df,
+             transcript_annotations = bm_data, 
+             rescale_introns = TRUE)
 ```
 
-
-
-
-
-
-```{r}
-require("org.Hs.eg.db")
-library("ensembldb")
-library("EnsDb.Hsapiens.v86")
-plotTranscriptsFromEnsembldb(EnsDb.Hsapiens.v86, gene_names = "NCOA7", 
-                             transcript_ids = c("ENST00000438495", "ENST00000392477"))
-
-plotTranscriptsFromUCSC(orgdb = org.Hs.eg.db, txdb = TxDb.Hsapiens.UCSC.hg38.knownGene, 
-                        gene_names = "NCOA7", transcript_ids = c("ENST00000438495.6", "ENST00000368357.7"))
-#txdb <- makeTxDbFromGFF(file = #"reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
-#                        format = "gtf")
-
-exons <- exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene, by = "gene")
-#cdss <- cdsBy(txdb, by = "gene")
-
-track_dat <- data.frame()
-
-selected_transcripts < my_top_genes
-
-wiggleplotr::plotCoverage(exons = exons[my_top_genes],
-                          cdss = cdss[my_top_genes], 
-             ncoa7_metadata, track_data,
-             heights = c(2,1), fill_palette = getGenotypePalette(),
-             mean_only = FALSE, alpha = 0.5)
-
+```{r, cache=TRUE}
+plotCoverage(exons = exons[chr22_de_genes[3]], track_data = bw_df,
+             transcript_annotations = bm_data,
+             rescale_introns = FALSE)
 ```
 
 ### Ontology testing
+
+Finally, we can use the `gprofiler` package to test for enrichment of gene ontology terms (among other things) in our differential expressed gene list as follows
 ```{r, cache=TRUE}
 ontology_result <- gprofiler2::gost(query = rownames(tt2)[tt2$Significant])
 head(ontology_result$result)
@@ -313,6 +320,7 @@ Plot ontology result
 ```{r, cache=TRUE}
 gprofiler2::gostplot(ontology_result)
 ```
+
 ===
 
 ```{r}
