@@ -1,0 +1,8 @@
+﻿Sample,Donor,Treatment,Bam
+1001_CD4pos_S,1001,Stimulated,1001-Effector_CD4pos_T-S.bam
+1001_CD4pos_U,1001,Unstimulated,1001-Effector_CD4pos_T-U.bam
+1002_CD4pos_S,1002,Stimulated,1002-Effector_CD4pos_T-S.bam
+1003_CD4pos_S,1003,Stimulated,1003-Effector_CD4pos_T-S.bam
+1003_CD4pos_U,1003,Unstimulated,1003-Effector_CD4pos_T-U.bam
+1004_CD4pos_S,1004,Stimulated,1004-Effector_CD4pos_T-S.bam
+1004_CD4pos_U,1004,Unstimulated,1004-Effector_CD4pos_T-U.bam
