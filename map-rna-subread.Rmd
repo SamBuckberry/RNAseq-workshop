@@ -1,28 +1,39 @@
 ---
-title: "Untitled"
+title: "RNA-seq read alignment in R"
 author: "Sam Buckberry"
 date: "20/10/2021"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Once you are confident in the quality of the RNA-seq data, you can then move onto creating a matrix of read counts to use in differential expression testing. To do this, we first need to map the reads to a reference genome (or transcriptome), and then count the aligned reads with respect to gene annotations to calculate the number of reads mapping to each gene.
+
+If the species under study has a well-annotated transcriptome, the reads can be aligned to the transcript sequences instead of the reference genome using tools such as [Kallisto](https://pachterlab.github.io/kallisto/about) or [Salmon](https://salmon.readthedocs.io/en/latest/salmon.html). When no good quality reference genome or transcriptome is available for the species being studied, you can *de novo* assemble transcripts using tools such as [Trinity](https://github.com/trinityrnaseq/trinityrnaseq/wiki) and then quantify the expression levels of genes/transcripts. However, the use of these tools is outside of the scope of this short workshop. 
+
+For RNA-seq read alignments, apart from the availability of reference genomes and annotations, probably the most important factor to consider when choosing an alignment tool is whether the alignment method considers the absence of intronic regions in the sequenced reads, while the target genome may contain introns. Therefore, it is important to choose alignment tools that take into account alternative splicing. In the basic setting where a read, which originates from a cDNA sequence corresponding to an exon-exon junction, needs to be split into two parts when aligned against the genome.
+
+There are various tools that consider this factor such as STAR, Hisat2, and Subread. As Subread is implimented in the `Rsubread` R package, we will use this tool here.
+
+Load the libraries.
 ```{r}
 library(Rsubread)
-#library(DT)
 library(magrittr)
 library(stringr)
+library(DT)
 ```
 
-Build the Rsubread alignment index
+First, we need to index the reference genome by building the Rsubread alignment index. It is reccomended to use the option `gappedIndex = TRUE` on a personal computer that has limited memory capacity. 
 ```{r, cache=TRUE}
-buildindex(basename="reference/GRCh38_chr22",
+buildindex(basename="reference/GRCh38_chr22", gappedIndex = TRUE,
            reference="reference/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
 ```
 
-Command to align one sample (no need to run)
+Now we have the reference genome built, we can align the reads to our reference genome using the `Rsubread::align` function. 
+
+Here is an example command to align one sample to the indexed reference genome using one thread. Here the inputs are the `.fastq.gz` files, and the output is a `.bam` file (no need to run). 
 ```{r, eval=FALSE}
 align_dat <- align(index="GRCh38",
                    readfile1 = "1001-Effector_CD4pos_T-S_filt_fastp_R1.fastq.gz",
@@ -31,8 +42,10 @@ align_dat <- align(index="GRCh38",
                    nthreads = 1)
 ```
 
-Write a function to align all samples. Here the inputs are the `.fastq.gz` files, and the output is a `.bam` file. 
-```{r}
+To process all the samples at once, we can create a table of all input and output files and process the data by writing a function.  
+
+First, we create the table of all the input and output files:  
+```{r, cache=TRUE}
 # function to align all samples
 
 r1_list <- list.files("fastq/", pattern = "_filt_fastp_R1.fastq.gz",
@@ -49,9 +62,18 @@ bam_list <- str_c("aligned_data/", bam_list)
 
 fq_df <- data.frame(r1 = r1_list, r2 = r2_list, bam = bam_list)
 
-# Double check all files exist
-all(file.exists(c(r1_list, r2_list)))
+head(fq_df)
+```
 
+Double check all input files exist
+```{r, cache=TRUE}
+all(file.exists(c(r1_list, r2_list)))
+```
+
+And then write a function to align the data for each sample.  
+
+Here we are using the `align` function which is applicable to both RNA-seq and DNA sequencing data.  
+```{r, eval=FALSE}
 # Function to align reads for each sample
 align_list <- function(x){
   
@@ -71,16 +93,41 @@ align_list <- function(x){
 align_dat <- lapply(1:nrow(fq_df), align_list)
 ```
 
-Convert alignment data into matrix and view as table. 
+Or we could use the `subjunc` function that is designed for RNA-seq and will also report novel exon-exon junctions, and can be tailored to discover structural varaitions in the RNA-seq data. For more information on this, see the `subjunc` documentation by using the `?subjunc` command.  
+```{r, cache=TRUE}
+subjunc_list <- function(x){
+  
+  subjunc(index="reference/GRCh38_chr22",
+        sortReadsByCoordinates = TRUE,
+        useAnnotation = TRUE,
+        annot.ext = "reference/Homo_sapiens.GRCh38.104.chromosome.22.gtf.gz",
+        isGTF = TRUE,
+        readfile1= fq_df$r1[x],
+        readfile2 = fq_df$r2[x],
+        output_file = fq_df$bam[x],
+        nthreads = 2)
+}
 
-See if you can transform these data to assess percentage of aligned fragments. 
-```{r}
-align_dat <- do.call(cbind, align_dat)
-datatable(align_dat)
+# Apply function to list of samples
+map_dat <- lapply(1:nrow(fq_df), subjunc_list)
 ```
 
-Create the table of counts for genes and transcripts using the `featureCounts` function from Subread. 
-```{r}
+> **_Challenge:_** Try to align the reads by allowing multi-mappers (set unique = FALSE), and allow for up to 6 “best” locations to be reported (nBestLocations = 6). Specify the output file names in the `fq_df` object by substituting the `df_fq$bam` data with `df_fq$bam <- str_replace_all(string = df_fq$bam, pattern = ".bam", replacement = "_multi.bam")` so not to overwrite the unique alignment bam files. Then look at the proportion of reads mapped and see if we get any more reads mapping by specifying a less stringent criteria.
+
+Convert alignment data into matrix and view as table. 
+```{r, cache=TRUE}
+map_dat <- do.call(cbind, map_dat)
+datatable(data = map_dat)
+```
+
+Or use the `propmapped` function to check the proportion of aligned reads for all libraries. 
+```{r, cache=TRUE}
+props <- propmapped(files = fq_df$bam)
+props
+```
+
+Now lets create the table of counts for genes and transcripts using the `featureCounts` function from Subread. 
+```{r, cache=TRUE}
 # Check BAM files exist
 stopifnot(file.exists(fq_df$bam))
 
@@ -105,35 +152,28 @@ tx_counts <- featureCounts(files = fq_df$bam,
 ```
 
 Inspect gene count statistics
-```{r}
+```{r, cache=TRUE}
 datatable(gene_counts$stat)
 ```
 
 Inspect transcript count statistics
-```{r}
+```{r, cache=TRUE}
 datatable(tx_counts$stat)
 ```
 
 Inspect the counts table
-```{r}
-head(gene_counts$)
+```{r, cache=TRUE}
+head(gene_counts$counts)
 ```
-
-
 
 Save the counts objects to use in downstream analyses.
-```{r}
-saveRDS(object = gene_counts, file = "Effector_CD4pos_gene_counts.Rds")
-saveRDS(object = tx_counts, file = "Effector_CD4pos_transcript_counts.Rds")
-```
-
-```{r}
-system("multiqc --force --module featureCounts .")
+```{r, cache=TRUE}
+saveRDS(object = gene_counts, file = "Effector_CD4pos_gene_counts_chr22.Rds")
+saveRDS(object = tx_counts, file = "Effector_CD4pos_transcript_counts_chr22.Rds")
 ```
 
 ===
 
-Log session information
 ```{r}
 sessionInfo()
 ```
