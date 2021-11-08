@@ -264,6 +264,8 @@ And annotate the DE gene table
 ```{r, cache=TRUE}
 ind <- match(rownames(tt2), bm_data$gene_id)
 tt_annotated <- cbind(tt2, bm_data[ind, ])
+
+head(tt_annotated)
 ```
 
 

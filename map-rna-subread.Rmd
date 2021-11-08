@@ -32,7 +32,8 @@ library(edgeR)
 
 First, we need to index the reference genome by building the Rsubread alignment index. It is reccomended to use the option `gappedIndex = TRUE` on a personal computer that has limited memory capacity. 
 ```{r, cache=TRUE}
-buildindex(basename="reference/GRCh38_chr22", gappedIndex = TRUE,
+buildindex(basename="reference/GRCh38_chr22",
+           gappedIndex = TRUE,
            reference="reference/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz")
 ```
 
@@ -110,7 +111,7 @@ subjunc_list <- function(x){
         readfile1= fq_df$r1[x],
         readfile2 = fq_df$r2[x],
         output_file = fq_df$bam[x],
-        nthreads = 2)
+        nthreads = 1)
 }
 
 # Apply function to list of samples
@@ -145,7 +146,7 @@ gene_counts <- featureCounts(files = fq_df$bam,
                              annot.ext = gtf_path,
                              isGTFAnnotationFile = TRUE,
                              isPairedEnd = TRUE,
-                             nthreads=1)
+                             nthreads=16)
 
 ### Calculate transcript counts
 tx_counts <- featureCounts(files = fq_df$bam,
@@ -153,7 +154,7 @@ tx_counts <- featureCounts(files = fq_df$bam,
                          annot.ext = gtf_path,
                          isGTFAnnotationFile = TRUE,
                          isPairedEnd = TRUE,
-                         nthreads=1)
+                         nthreads=16)
 ```
 
 Inspect gene count statistics
@@ -183,14 +184,8 @@ Bigwig coverage files can be used to generate many types of plots, including cov
 
 To make the bigwig coverage files from the bam alignments, first make a list of the bam files
 ```{r, cache=TRUE}
-bams <- list.files(path = "aligned_data/", pattern = ".bam$",
+bams <- list.files(path = "aligned_data/", pattern = "_filt_fastp.bam$",
                    full.names = TRUE)
-
-bam_prefix <- str_replace_all(string = bams,
-                               pattern = ".bam",
-                               replacement = "_sorted")
-
-lapply(X = 1:length(bams), FUN = function(x){sortBam(bams[x], bam_prefix[x])})
 ```
 
 Then a function for making bigwig files from bam files
