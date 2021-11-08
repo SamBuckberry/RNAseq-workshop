@@ -22,15 +22,6 @@ Otherwise you can clone this repository in a bash terminal:
 
 ---
 
-### Experimental design considerations
-- What RNA-seq library preperation method was used? Are the transcripts polyA selected? Were ribosomal RNA depleted? Was the library preperation protocol stranded? Was there a size selection for miRNA?
-- Were spike-in controls used?
-- What sequencing platform was used?
-- What is the sequencing paired-end or single-end?
-- What was the target sequencing depth?
-
----
-
 ## Analysis workflow
 
 ### Pre-alignment
