@@ -57,6 +57,7 @@ Follow the workflow in the [rna-differential-expression-testing.Rmd](rna-differe
 - HISAT2 alignment 
 - Stringtie assembly of _de novo_ transcripts
 
+Follow the workflow in [de-novo-transcript-assembly.Rmd](de-novo-transcript-assembly.Rmd)
 
 If you do not have a reference genome or transcriptome, [Trinity](https://github.com/trinityrnaseq/trinityrnaseq/wiki) is a highly regarded tool for de novo transcript assembly using short read illumina data. The computational requirements are extensive and its use is beyond the scope of this workshop. One decent guide (among many) to the considerations of de novo transcriptome assembly can be found [here](https://informatics.fas.harvard.edu/best-practices-for-de-novo-transcriptome-assembly-with-trinity.html) 
 
