@@ -2,7 +2,7 @@
 title: "FASTQ Quality Control"
 author: "Sam Buckberry"
 date: "23/10/2021"
-output: html_document
+output: github_document
 ---
 Load R libraries 
 ```{r, message=FALSE}
