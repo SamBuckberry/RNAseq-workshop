@@ -33,10 +33,12 @@ Otherwise you can clone this repository in a bash terminal:
 ## Analysis workflow
 
 ### Pre-alignment
-Follow the workflow in the `fastq-quality-control` Rmd or html file which covers:  
+This section covers:
 
 - FASTQ file quality assessment
 - Read filtering and trimming for adapters and low-quality base calls
+
+Follow the workflow in the [fastq-quality-control.Rmd](fastq-quality-control.Rmd) file to generate your own report, or inspect the pre-processed [fastq-quality-control.md](fastq-quality-control.md) in this repository. 
 
 ### Alignment 
 Follow the workflow in the `map-rna-subread` Rmd or html file which covers:
