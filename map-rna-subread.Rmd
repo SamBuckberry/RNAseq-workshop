@@ -23,6 +23,11 @@ library(Rsubread)
 library(magrittr)
 library(stringr)
 library(DT)
+library(rtracklayer)
+library(Rsamtools)
+library(stringr)
+library(magrittr)
+library(edgeR)
 ```
 
 First, we need to index the reference genome by building the Rsubread alignment index. It is reccomended to use the option `gappedIndex = TRUE` on a personal computer that has limited memory capacity. 
@@ -170,6 +175,82 @@ Save the counts objects to use in downstream analyses.
 ```{r, cache=TRUE}
 saveRDS(object = gene_counts, file = "processed_data/Effector_CD4pos_gene_counts_chr22.Rds")
 saveRDS(object = tx_counts, file = "processed_data/Effector_CD4pos_transcript_counts_chr22.Rds")
+```
+
+### Make Bigwig coverage files
+
+Bigwig coverage files can be used to generate many types of plots, including coverage heatmaps genome browser tracks
+
+To make the bigwig coverage files from the bam alignments, first make a list of the bam files
+```{r, cache=TRUE}
+bams <- list.files(path = "aligned_data/", pattern = ".bam$",
+                   full.names = TRUE)
+
+bam_prefix <- str_replace_all(string = bams,
+                               pattern = ".bam",
+                               replacement = "_sorted")
+
+lapply(X = 1:length(bams), FUN = function(x){sortBam(bams[x], bam_prefix[x])})
+```
+
+Then a function for making bigwig files from bam files
+```{r, cache=TRUE}
+bam_to_bigwig <- function(sorted_bam, CPM_normalise=TRUE){
+    
+    message(Sys.time())
+    message(str_c("Processing ", sorted_bam))
+
+    # Check inputs
+    stopifnot(length(sorted_bam) == 1)
+    stopifnot(length(CPM_normalise) == 1)
+    stopifnot(file.exists(sorted_bam))
+    stopifnot(is.logical(CPM_normalise))
+    
+    # Set outfile name
+    out_path <- str_replace(string = sorted_bam,
+                            pattern = ".bam$",
+                            replacement = ".bigwig")
+    
+    # Use samtools to pileup reads
+    message("Running samtools pileup...")
+    param <- Rsamtools::PileupParam(distinguish_strands=FALSE,
+                                distinguish_nucleotides = FALSE,
+                                max_depth=10000,
+                                min_base_quality=0)
+
+    pileup_dat <- Rsamtools::pileup(file = sorted_bam,
+                          pileupParam = param)
+    
+    # Convert to GRanges
+    gr <- GRanges(seqnames = pileup_dat$seqnames,
+                  ranges = IRanges(start = pileup_dat$pos,
+                                   end = pileup_dat$pos))
+    
+    # Get contig/chromosome lengths from BAM file
+    idx <- Rsamtools::idxstatsBam(sorted_bam)
+    used_seqlengths <- idx$seqlength
+    names(used_seqlengths) <- idx$seqnames
+    seqlengths(gr) <- used_seqlengths
+
+    # Normalise the data
+    if (CPM_normalise == TRUE){
+        message("Normalising data...")
+        pileup_dat$cpm <- edgeR::cpm(y = pileup_dat$count) %>% as.numeric()
+        gr$score <- as.numeric(pileup_dat$cpm)
+    } else if (CPM_normalise == FALSE){
+        gr$score <- as.numeric(pileup_dat$count)
+    }
+    
+    # Add strand info
+    strand(gr) <- "+"
+
+    # Write the output file
+    message(str_c("Writing ", out_path))
+    export.bw(object = gr, con = out_path)
+    message("Done!")
+}
+
+lapply(X = bams, FUN = bam_to_bigwig)
 ```
 
 ===
