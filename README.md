@@ -2,7 +2,7 @@
 
 With the emergence of high-throughput sequencing technologies, it has become trivial to profile the expression levels of tens of thousands of genes in a single experiment. However, the challenge in many of these experiments is often the analysis of the data rather than the generation of the data.
 
-A whole suite of computational tools and methods are required for getting meaningful results from RNA-seq experiments. Although RNA-seq experiments can yield a lot of valuable information, challenges also exist in dealing with multiple sources of noise and bias in the data. However, most steps in RNA-seq data analysis are reasonably mature.
+A whole suite of computational tools and methods are required for getting meaningful results from RNA-seq experiments. Although RNA-seq experiments can yield a lot of valuable information, challenges also exist in dealing with multiple sources of noise and bias in the data. However, most steps in RNA-seq data analysis are reasonably mature. See [Stark et al. RNA sequencing: the teenage years](https://www.nature.com/articles/s41576-019-0150-2) for a recent review.
 
 In this series of exercises, we will first describe how to perform quality contol on the sequence data obtained from an Illumina sequencing run, how to map these reads to a reference genome/transcriptome, derive a read count table for control-treatment differential expression analysis, how to perform functional enrichment tests, and how to visualise your the data throught your analyses.
 
