@@ -14,6 +14,6 @@ BiocManager::install(bioc_packages)
 ### Install from CRAN using bioc to ensure version compatability
 cran_package <-  c('stringr', 'magrittr', 'DT', 'markdown', 'mime',
                    'rmarkdown', 'tinytex', 'knitr', 'pheatmap', 'tidyr',
-                   'ggplot2', 'ggrepel', 'upsetR', 'cowplot'. 'dplyr')
+                   'ggplot2', 'ggrepel', 'UpSetR', 'cowplot', 'dplyr')
 
 BiocManager::install(pkgs = cran_package, site_repository = "CRAN")
