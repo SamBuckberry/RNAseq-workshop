@@ -207,12 +207,12 @@ plot_gene <- function(gene_ids){
         data.frame()
     colnames(dat) <- v$targets$samples
     
-    # Re-shape the data into the ggplot preffered long format
-    dat <- tibble::rownames_to_column(dat, var = "gene_id") %>%
-        tidyr::gather(sample, value, -gene_id)
+    # Re-shape the data into the ggplot preferred long format
+    dat$gene_id <- rownames(dat)
+    dat <- reshape2::melt(dat)
     
     # Add the group data
-    dat$group <- v$targets$group[match(dat$sample, v$targets$samples)]
+    dat$group <- v$targets$group[match(dat$variable, v$targets$samples)]
     
     # plot the gene expression vaues
     ggplot(data = dat, aes(x = group, y = value)) + 
