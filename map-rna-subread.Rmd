@@ -42,9 +42,9 @@ Now we have the reference genome built, we can align the reads to our reference 
 Here is an example command to align one sample to the indexed reference genome using one thread. Here the inputs are the `.fastq.gz` files, and the output is a `.bam` file (no need to run). 
 ```{r, eval=FALSE}
 align_dat <- align(index="GRCh38",
-                   readfile1 = "1001-Effector_CD4pos_T-S_filt_fastp_R1.fastq.gz",
-                   readfile2 = "1001-Effector_CD4pos_T-S_filt_fastp_R2.fastq.gz",
-                   output_file="1001-Effector_CD4pos_T-S.BAM",
+                   readfile1 = "fastq/1001-Effector_CD4pos_T-S_filt_fastp_R1.fastq.gz",
+                   readfile2 = "fastq/1001-Effector_CD4pos_T-S_filt_fastp_R2.fastq.gz",
+                   output_file="aligned_data/1001-Effector_CD4pos_T-S.BAM",
                    nthreads = 1)
 ```
 
@@ -223,6 +223,7 @@ bam_to_bigwig <- function(sorted_bam, CPM_normalise=TRUE){
     
     # Get contig/chromosome lengths from BAM file
     idx <- Rsamtools::idxstatsBam(sorted_bam)
+    idx <- idx[idx$seqnames != "*", ]
     used_seqlengths <- idx$seqlength
     names(used_seqlengths) <- idx$seqnames
     seqlengths(gr) <- used_seqlengths
