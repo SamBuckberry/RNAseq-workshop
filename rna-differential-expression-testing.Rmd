@@ -111,6 +111,12 @@ sum((tt$table$FDR < 0.05) & (abs(tt$table$logFC) > 1))
 v <- voom(counts = y, design = design, plot = TRUE)
 ```
 
+See how the mean-variance trend looks for unfiltered count data
+```{r}
+v2 <- voom(counts = gene_counts$counts, design = design, plot = TRUE)
+```
+
+
 
 ```{r, fig.height=5, cache=TRUE}
 boxplot(v$E, names=v$targets$samples)

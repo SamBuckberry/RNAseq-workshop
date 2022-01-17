@@ -30,8 +30,5 @@ samtools view -bSu "$baseName".sam > "$baseName".bam
 samtools sort -T "$baseName"_sorted "$baseName".bam > "$baseName".sorted.bam
 samtools index "$baseName".sorted.bam
 
-# Remove reads with more than one alignment to get unique mappers
-#sambamba view -t "$cores" -f bam -F "[NH]==1" -o "$baseName"_dta.uniq.bam "$baseName".sorted.bam
-
 # Create md5 sum of alignment file
-#md5sum "$baseName"_dta.uniq.bam > "$baseName"_dta.uniq.bam.md5
+md5sum "$baseName".sorted.bam > "$baseName".sorted.bam.md5
